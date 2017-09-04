@@ -392,7 +392,6 @@ void PathDistance::recompute_centroid(const PathFile &p) {
   std::atomic<uint64_t> best_candidate;
   best_candidate.store(0);
 
-  //pbrt::ParallelInit();
   pbrt::ParallelFor([&](uint64_t i) {
       float localdistsum = distance(p[elements[i]]); // Account for distance to current mean
       for (int j = 0; j < elements.size(); ++j) {
@@ -426,11 +425,12 @@ float PathDistance::distance(const pbrt::path_entry &p1, const pbrt::path_entry 
   const pbrt::path_entry &l_path = p1.pathlen >= p2.pathlen ? p1 : p2;
 
   float distsum = 0.f;
-  for (int i = 0; i < s_path.vertices.size(); ++i) {
+  for (int i = 1; i < s_path.vertices.size(); ++i) {
     float localmin = std::numeric_limits<float>::max();
-    for (int j = 0; j < l_path.vertices.size(); ++j) {
-      localmin = std::min(pbrt::Vector3f(
-              pbrt::FromArray(s_path.vertices[i].v) - pbrt::FromArray(l_path.vertices[j].v)).LengthSquared(), localmin);
+    for (int j = 1; j < l_path.vertices.size(); ++j) {
+    // localmin = std::min(pbrt::Vector3f(pbrt::FromArray(s_path.vertices[i].v) - pbrt::FromArray(l_path.vertices[j].v)).LengthSquared(), localmin);
+      localmin = std::min(pbrt::Vector3f(pbrt::Vector3f(pbrt::FromArray(s_path.vertices[i].v) - pbrt::FromArray(s_path.vertices[i-1].v))-
+      pbrt::Vector3f(pbrt::FromArray(l_path.vertices[j-1].v) - pbrt::FromArray(l_path.vertices[j].v))).LengthSquared(), localmin);
     }
     distsum += localmin;
   }
@@ -445,6 +445,7 @@ void PathDistance::getElementsToSort(std::vector<uint64_t> &sampleset) {
   sampleset.insert(sampleset.end(), elements.begin(), elements.end());
   elements.clear();
   resortelements = false;
+  currentcost = 0;
 }
 
 void PathDistance::update_mean(const pbrt::path_entry &p) {

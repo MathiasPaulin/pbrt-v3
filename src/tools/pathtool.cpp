@@ -16,8 +16,9 @@
 #include "core/film.h"
 #include "core/paramset.h"
 #include <memory>
+#include <filters/triangle.h>
 
-void label_to_img(PathFile &paths, const std::string &filename, int xres, int yres, int diagonal, const std::vector<uint64_t> &elements);
+void label_to_img(PathFile &paths, const std::string &filename, int xres, int yres, float diagonal, const std::vector<uint64_t> &elements);
 
 namespace pbrt {
 
@@ -325,10 +326,10 @@ void leveinstein_classification(int argc, char* argv[]) {
 }
 
 
-void label_to_img(PathFile &paths, const std::string &filename, int xres, int yres, int diagonal, const std::vector<uint64_t> &elements) {
+void label_to_img(PathFile &paths, const std::string &filename, int xres, int yres, float diagonal, const std::vector<uint64_t> &elements) {
   pbrt::Film *film =  new pbrt::Film(pbrt::Point2i(xres, yres),
                                      pbrt::Bounds2f(pbrt::Point2f(0, 0), pbrt::Point2f(1, 1)),
-                                     std::unique_ptr<pbrt::Filter>(pbrt::CreateBoxFilter(pbrt::ParamSet())), diagonal, filename, 1.f);
+                                     std::unique_ptr<pbrt::Filter>(new pbrt::TriangleFilter(pbrt::Vector2f(1.f, 1.f))), diagonal, filename, 1.f);
 
   std::unique_ptr<pbrt::FilmTile> tile(film->GetFilmTile(pbrt::Bounds2i(pbrt::Point2i(0,0), pbrt::Point2i(xres,yres))));
   for(uint64_t idx : elements) {
@@ -380,7 +381,7 @@ void path_to_img(int argc, char* argv[]) {
 
   pbrt::Film *film =  new pbrt::Film(pbrt::Point2i(1024,1024),
           pbrt::Bounds2f(pbrt::Point2f(0, 0), pbrt::Point2f(1, 1)),
-          std::unique_ptr<pbrt::Filter>(pbrt::CreateBoxFilter(pbrt::ParamSet())), 35.f, outputfile, 1.f);
+          std::unique_ptr<pbrt::Filter>(new pbrt::TriangleFilter(pbrt::Vector2f(1.f, 1.f))), 35.f, outputfile, 1.f);
 
   std::unique_ptr<pbrt::FilmTile> tile(film->GetFilmTile(pbrt::Bounds2i(pbrt::Point2i(0,0), pbrt::Point2i(1024,1024))));
   for(const pbrt::path_entry &p : paths) {

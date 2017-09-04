@@ -104,7 +104,7 @@ class PathFile {
         // difference_type operator-(const_iterator) const; //optional
 
         const_reference operator*() {
-          return cpath = pbrt::path_fromptr((void*)cpos);
+          return cpath = pbrt::path_entry::path_fromptr((void*)cpos);
         }
 
         const_pointer operator->() const {
@@ -117,7 +117,7 @@ class PathFile {
 
         // Random access
         const_reference operator[](pbrt::path_entry *pos) {
-          return cpath = pbrt::path_fromptr((void*)pos);
+          return cpath = pbrt::path_entry::path_fromptr((void*)pos);
         }
 
       private:
@@ -190,7 +190,7 @@ class PathFile {
 
     // Random access
     pbrt::path_entry operator[](size_type pos) const {
-      return pbrt::path_fromptr((void*)index[pos]);
+      return pbrt::path_entry::path_fromptr((void*)index[pos]);
     }
 
     bool eof() const {

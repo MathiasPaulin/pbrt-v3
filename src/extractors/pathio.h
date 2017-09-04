@@ -62,21 +62,19 @@ struct path_entry {
       }
       return true;
     }
+
+    static path_entry path_fromptr(void* pathptr) {
+      pbrt::path_entry p;
+      memcpy(&p, (char*)pathptr, 2*sizeof(uint32_t)+(3+2)*sizeof(float));
+      p.vertices.resize(p.pathlen);
+      p.path.append((char*)pathptr+28+p.regexlen, p.pathlen);
+      p.regex.append((char*)pathptr+28, p.regexlen);
+      memcpy(&p.vertices[0], (char*)(pathptr)+8+12+8+p.regexlen+p.pathlen, p.pathlen*sizeof(vertex_entry));
+      return p;
+    }
 };
 
-static path_entry path_fromptr(void* pathptr) {
-  uint32_t regexlen = *(uint32_t*)(pathptr);
-  uint32_t pathlen = *((uint32_t*)((char*)pathptr+4));
-  std::array<float,3> L;
-  std::array<float,2> pFilm;
-  memcpy(&L[0], (char*)pathptr+8, 3*sizeof(float));
-  memcpy(&pFilm[0], (char*)pathptr+8+12, 2*sizeof(float));
-  std::vector<vertex_entry> vector(pathlen);
-  memcpy((void*)vector.data(), (void*)((char*)(pathptr)+8+12+8+regexlen+pathlen), pathlen*sizeof(vertex_entry));
-  return pbrt::path_entry( 
-    std::string((char*)pathptr+8+12+8, regexlen),
-    std::string((char*)pathptr+8+12+8+regexlen, pathlen), L, pFilm, vector);
-}
+
 
 static Point3f FromArray(const std::array<Float, 3> &arr) {
   return Point3f(arr[0], arr[1], arr[2]);
@@ -84,24 +82,22 @@ static Point3f FromArray(const std::array<Float, 3> &arr) {
 
 // Move to path_entry ?
 static size_t path_size(const path_entry &p) {
-  return 8 + 12 + 8 + p.regexlen + p.pathlen * (1 + sizeof(vertex_entry));
+  return 2*sizeof(uint32_t) + (3+2)*sizeof(float) + p.regexlen + p.pathlen * (1 + sizeof(vertex_entry));
 }
+
+
 
 inline std::istream &operator>>(std::istream &is, vertex_entry &v) {
     return is.read((char*)&v, sizeof(vertex_entry));
 }
 
 inline std::istream &operator>>(std::istream &is, path_entry &entry) {
-    is.read((char*)&entry.regexlen, sizeof(uint32_t));
-    is.read((char*)&entry.pathlen, sizeof(uint32_t));
-    is.read((char*)&entry.L, sizeof(float)*3);
-    is.read((char*)&entry.pFilm, sizeof(float)*2);
+    is.read((char*)&entry, 2*sizeof(uint32_t)+(3+2)*sizeof(float));
     entry.regex.reserve(entry.regexlen);
     entry.path.reserve(entry.pathlen);
+    entry.vertices.resize(entry.pathlen);
     is.read(&entry.regex[0], entry.regexlen);
     is.read(&entry.path[0], entry.pathlen);
-
-    entry.vertices.resize(entry.pathlen);
     is.read((char*)&entry.vertices[0], sizeof(vertex_entry) * entry.pathlen);
 
     return is;
@@ -112,10 +108,7 @@ inline std::ostream &operator<<(std::ostream &os, const vertex_entry &v) {
 }
 
 inline std::ostream &operator<<(std::ostream &os, const path_entry &entry) {
-  os.write((char*)(&entry.regexlen), sizeof(uint32_t));
-  os.write((char*)(&entry.pathlen), sizeof(uint32_t));
-  os.write((char*)(&entry.L), sizeof(float)*3);
-  os.write((char*)(&entry.pFilm), sizeof(float)*2);
+  os.write((char*)&entry, 2*sizeof(uint32_t)+(3+2)*sizeof(float));
   os.write(entry.regex.c_str(), entry.regexlen);
   os.write(entry.path.c_str(), entry.pathlen);
   os.write((char*)(&entry.vertices[0]), sizeof(vertex_entry) * entry.pathlen);
