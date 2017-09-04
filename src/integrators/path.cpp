@@ -49,9 +49,10 @@ STAT_INT_DISTRIBUTION("Integrator/Path length", pathLength);
 PathIntegrator::PathIntegrator(int maxDepth,
                                std::shared_ptr<const Camera> camera,
                                std::shared_ptr<Sampler> sampler,
+                               std::shared_ptr<ExtractorManager> extractor,
                                const Bounds2i &pixelBounds, Float rrThreshold,
                                const std::string &lightSampleStrategy)
-    : SamplerIntegrator(camera, sampler, pixelBounds),
+    : SamplerIntegrator(camera, sampler, extractor, pixelBounds),
       maxDepth(maxDepth),
       rrThreshold(rrThreshold),
       lightSampleStrategy(lightSampleStrategy) {}
@@ -63,7 +64,7 @@ void PathIntegrator::Preprocess(const Scene &scene, Sampler &sampler) {
 
 Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
                             Sampler &sampler, MemoryArena &arena,
-                            int depth) const {
+                            Containers &container, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
     Spectrum L(0.f), beta(1.f);
     RayDifferential ray(r);
@@ -79,6 +80,7 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
     Float etaScale = 1;
 
     for (bounces = 0;; ++bounces) {
+        container.Init(r, bounces, scene);
         // Find next path vertex and accumulate contribution
         VLOG(2) << "Path tracer bounce " << bounces << ", current L = " << L
                 << ", beta = " << beta;
@@ -86,6 +88,8 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
         // Intersect _ray_ with scene and store intersection in _isect_
         SurfaceInteraction isect;
         bool foundIntersection = scene.Intersect(ray, &isect);
+
+
 
         // Possibly add emitted light at intersection
         if (bounces == 0 || specularBounce) {
@@ -105,6 +109,10 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
 
         // Compute scattering functions and skip over medium boundaries
         isect.ComputeScatteringFunctions(ray, arena, true);
+
+        // Report intersection to container
+        container.ReportData(isect);
+
         if (!isect.bsdf) {
             VLOG(2) << "Skipping intersection due to null bsdf";
             ray = isect.SpawnRay(ray.d);
@@ -173,6 +181,9 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             ray = pi.SpawnRay(wi);
         }
 
+        // Collect BSDF spectrum, pdf, rev_pdf and type
+        container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+
         // Possibly terminate the path with Russian roulette.
         // Factor out radiance scaling due to refraction in rrBeta.
         Spectrum rrBeta = beta * etaScale;
@@ -183,13 +194,15 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             DCHECK(!std::isinf(beta.y()));
         }
     }
+    container.ReportData(L);
     ReportValue(pathLength, bounces);
     return L;
 }
 
 PathIntegrator *CreatePathIntegrator(const ParamSet &params,
                                      std::shared_ptr<Sampler> sampler,
-                                     std::shared_ptr<const Camera> camera) {
+                                     std::shared_ptr<const Camera> camera,
+                                     std::shared_ptr<ExtractorManager> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     int np;
     const int *pb = params.FindInt("pixelbounds", &np);
@@ -208,7 +221,7 @@ PathIntegrator *CreatePathIntegrator(const ParamSet &params,
     Float rrThreshold = params.FindOneFloat("rrthreshold", 1.);
     std::string lightStrategy =
         params.FindOneString("lightsamplestrategy", "spatial");
-    return new PathIntegrator(maxDepth, camera, sampler, pixelBounds,
+    return new PathIntegrator(maxDepth, camera, sampler, extractor, pixelBounds,
                               rrThreshold, lightStrategy);
 }
 

@@ -31,6 +31,7 @@
  */
 
 // core/integrator.cpp*
+#include <filters/box.h>
 #include "integrator.h"
 #include "scene.h"
 #include "interaction.h"
@@ -42,6 +43,9 @@
 #include "progressreporter.h"
 #include "camera.h"
 #include "stats.h"
+#include "extractors/extractor.h"
+#include "paramset.h"
+
 
 namespace pbrt {
 
@@ -259,6 +263,10 @@ void SamplerIntegrator::Render(const Scene &scene) {
             std::unique_ptr<FilmTile> filmTile =
                 camera->film->GetFilmTile(tileBounds);
 
+            // Get _FilmTile_ for extractors
+            std::unique_ptr<ExtractorTileManager> extractorTiles =
+                    extractor->GetNewExtractorTile(tileBounds);
+
             // Loop over pixels in tile to render them
             for (Point2i pixel : tileBounds) {
                 {
@@ -286,9 +294,11 @@ void SamplerIntegrator::Render(const Scene &scene) {
                         1 / std::sqrt((Float)tileSampler->samplesPerPixel));
                     ++nCameraRays;
 
+                    std::unique_ptr<Containers> container = extractor->GetNewContainer(cameraSample.pFilm);
+
                     // Evaluate radiance along camera ray
                     Spectrum L(0.f);
-                    if (rayWeight > 0) L = Li(ray, scene, *tileSampler, arena);
+                    if (rayWeight > 0) L = Li(ray, scene, *tileSampler, arena, *container);
 
                     // Issue warning if unexpected radiance value returned
                     if (L.HasNaNs()) {
@@ -319,6 +329,9 @@ void SamplerIntegrator::Render(const Scene &scene) {
                     // Add camera ray's contribution to image
                     filmTile->AddSample(cameraSample.pFilm, L, rayWeight);
 
+                    // Add extractor contribution to extractor film
+                    extractorTiles->AddSamples(cameraSample.pFilm, std::move(container), rayWeight);
+
                     // Free _MemoryArena_ memory from computing image sample
                     // value
                     arena.Reset();
@@ -328,6 +341,7 @@ void SamplerIntegrator::Render(const Scene &scene) {
 
             // Merge image tile into _Film_
             camera->film->MergeFilmTile(std::move(filmTile));
+            extractor->MergeTiles(std::move(extractorTiles));
             reporter.Update();
         }, nTiles);
         reporter.Done();
@@ -336,11 +350,12 @@ void SamplerIntegrator::Render(const Scene &scene) {
 
     // Save final image after rendering
     camera->film->WriteImage();
+    extractor->WriteOutput();
 }
 
 Spectrum SamplerIntegrator::SpecularReflect(
     const RayDifferential &ray, const SurfaceInteraction &isect,
-    const Scene &scene, Sampler &sampler, MemoryArena &arena, int depth) const {
+    const Scene &scene, Sampler &sampler, MemoryArena &arena, Containers &container, int depth) const {
     // Compute specular reflection direction _wi_ and BSDF value
     Vector3f wo = isect.wo, wi;
     Float pdf;
@@ -370,7 +385,7 @@ Spectrum SamplerIntegrator::SpecularReflect(
             rd.ryDirection =
                 wi - dwody + 2.f * Vector3f(Dot(wo, ns) * dndy + dDNdy * ns);
         }
-        return f * Li(rd, scene, sampler, arena, depth + 1) * AbsDot(wi, ns) /
+        return f * Li(rd, scene, sampler, arena, container, depth + 1) * AbsDot(wi, ns) /
                pdf;
     } else
         return Spectrum(0.f);
@@ -378,7 +393,7 @@ Spectrum SamplerIntegrator::SpecularReflect(
 
 Spectrum SamplerIntegrator::SpecularTransmit(
     const RayDifferential &ray, const SurfaceInteraction &isect,
-    const Scene &scene, Sampler &sampler, MemoryArena &arena, int depth) const {
+    const Scene &scene, Sampler &sampler, MemoryArena &arena, Containers &container, int depth) const {
     Vector3f wo = isect.wo, wi;
     Float pdf;
     const Point3f &p = isect.p;
@@ -420,7 +435,7 @@ Spectrum SamplerIntegrator::SpecularTransmit(
             rd.ryDirection =
                 wi + eta * dwody - Vector3f(mu * dndy + dmudy * ns);
         }
-        L = f * Li(rd, scene, sampler, arena, depth + 1) * AbsDot(wi, ns) / pdf;
+        L = f * Li(rd, scene, sampler, arena, container, depth + 1) * AbsDot(wi, ns) / pdf;
     }
     return L;
 }

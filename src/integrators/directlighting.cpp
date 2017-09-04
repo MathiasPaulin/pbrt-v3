@@ -61,8 +61,10 @@ void DirectLightingIntegrator::Preprocess(const Scene &scene,
 
 Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
                                       const Scene &scene, Sampler &sampler,
-                                      MemoryArena &arena, int depth) const {
+                                      MemoryArena &arena, Containers &container, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
+  container.Init(ray, depth, scene);
+
     Spectrum L(0.f);
     // Find closest ray intersection or return background radiance
     SurfaceInteraction isect;
@@ -71,10 +73,16 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
         return L;
     }
 
+
+
     // Compute scattering functions for surface interaction
     isect.ComputeScatteringFunctions(ray, arena);
+
+    // Report intersection data
+    container.ReportData(isect);
+
     if (!isect.bsdf)
-        return Li(isect.SpawnRay(ray.d), scene, sampler, arena, depth);
+        return Li(isect.SpawnRay(ray.d), scene, sampler, arena, container, depth);
     Vector3f wo = isect.wo;
     // Compute emitted light if ray hit an area light source
     L += isect.Le(wo);
@@ -89,15 +97,15 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
     if (depth + 1 < maxDepth) {
         Vector3f wi;
         // Trace rays for specular reflection and refraction
-        L += SpecularReflect(ray, isect, scene, sampler, arena, depth);
-        L += SpecularTransmit(ray, isect, scene, sampler, arena, depth);
+        L += SpecularReflect(ray, isect, scene, sampler, arena, container, depth);
+        L += SpecularTransmit(ray, isect, scene, sampler, arena, container, depth);
     }
     return L;
 }
 
 DirectLightingIntegrator *CreateDirectLightingIntegrator(
     const ParamSet &params, std::shared_ptr<Sampler> sampler,
-    std::shared_ptr<const Camera> camera) {
+    std::shared_ptr<const Camera> camera, std::shared_ptr<ExtractorManager> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     LightStrategy strategy;
     std::string st = params.FindOneString("strategy", "all");
@@ -127,7 +135,7 @@ DirectLightingIntegrator *CreateDirectLightingIntegrator(
         }
     }
     return new DirectLightingIntegrator(strategy, maxDepth, camera, sampler,
-                                        pixelBounds);
+                                        extractor, pixelBounds);
 }
 
 }  // namespace pbrt

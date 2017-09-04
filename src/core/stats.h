@@ -182,6 +182,15 @@ enum class Prof {
     TexFiltTrilerp,
     TexFiltEWA,
     TexFiltPtex,
+    ExtractorInit,
+    ExtractorReport,
+    PathExtractorRegexTest,
+    PathExtractorBuildPath,
+    PathExtractorToPathSample,
+    PathWriteOutput,
+    PathFormatOutput,
+    MergePathTile,
+    AddPathSample,
     NumProfCategories
 };
 
@@ -237,6 +246,15 @@ static const char *ProfNames[] = {
     "MIPMap::Lookup() (trilinear)",
     "MIPMap::Lookup() (EWA)",
     "Ptex lookup",
+    "Extractor::Init()",
+    "Extractor::ReportValue()",
+    "PathExtractor::isValidPath()",
+    "PathExtractor::BuildPath()",
+    "PathExtractor::ToPathSample()",
+    "PathOutput::WriteOutput()",
+    "PathEntry::ToString()",
+    "PathOutput::MergePathTile()",
+    "PathOutput::AddSample()",
 };
 
 static_assert((int)Prof::NumProfCategories ==

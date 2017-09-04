@@ -47,6 +47,7 @@
 #include "cameras/orthographic.h"
 #include "cameras/perspective.h"
 #include "cameras/realistic.h"
+#include "extractors/pathextractor.h"
 #include "filters/box.h"
 #include "filters/gaussian.h"
 #include "filters/mitchell.h"
@@ -175,6 +176,7 @@ struct RenderOptions {
     std::string CameraName = "perspective";
     ParamSet CameraParams;
     TransformSet CameraToWorld;
+    std::vector<std::pair<std::string, ParamSet>> extractors;
     std::map<std::string, std::shared_ptr<Medium>> namedMedia;
     std::vector<std::shared_ptr<Light>> lights;
     std::vector<std::shared_ptr<Primitive>> primitives;
@@ -704,6 +706,45 @@ std::shared_ptr<Sampler> MakeSampler(const std::string &name,
     return std::shared_ptr<Sampler>(sampler);
 }
 
+Extractor *MakeExtractor(const std::string &ExtractorName,
+                         const ParamSet &ExtractorParams, const Point2i &fullResolution,
+                         Float diagonal, const std::string &imageFilename) {
+    Extractor *extractor = nullptr;
+
+    if (ExtractorName == "normal") {
+        extractor = CreateNormalExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+    }
+    else if (ExtractorName == "albedo") {
+        extractor = CreateAlbedoExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+    }
+    else if (ExtractorName == "depth") {
+        extractor = CreateZExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+    }
+    else if (ExtractorName == "path") {
+        extractor = CreatePathExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+    }
+    else {
+        Error("Extractor \"%s\" unknown", ExtractorName.c_str());
+        return nullptr;
+    }
+
+    ExtractorParams.ReportUnused();
+    return extractor;
+}
+
+std::shared_ptr<ExtractorManager> MakeExtractorManager(std::vector<std::pair<std::string, ParamSet>> extractors, const Film &film) {
+    ExtractorManager *extractorManager = new ExtractorManager();
+
+    for(const auto& kv : extractors) {
+        Extractor *extractor = MakeExtractor(kv.first, kv.second, film.fullResolution, film.diagonal, film.filename);
+        if(extractor)
+            extractorManager->Add(extractor);
+    }
+
+    return std::shared_ptr<ExtractorManager>(extractorManager);
+}
+
+
 std::unique_ptr<Filter> MakeFilter(const std::string &name,
                                    const ParamSet &paramSet) {
     Filter *filter = nullptr;
@@ -954,6 +995,16 @@ void pbrtCamera(const std::string &name, const ParamSet &params) {
         params.Print(catIndentCount);
         printf("\n");
     }
+}
+
+void pbrtExtractor(const std::string &name, const ParamSet &params) {
+  VERIFY_OPTIONS("Extractor");
+  renderOptions->extractors.push_back({name, params});
+  if (PbrtOptions.cat || PbrtOptions.toPly) {
+    printf("%*sExtractor \"%s\" ", catIndentCount, "", name.c_str());
+    params.Print(catIndentCount);
+    printf("\n");
+  }
 }
 
 void pbrtMakeNamedMedium(const std::string &name, const ParamSet &params) {
@@ -1447,20 +1498,26 @@ Integrator *RenderOptions::MakeIntegrator() const {
         return nullptr;
     }
 
+    std::shared_ptr<ExtractorManager> extractor = MakeExtractorManager(extractors, *camera->film);
+    if (!extractor) {
+      Error("Unable to create extractor");
+      return nullptr;
+    }
+
     Integrator *integrator = nullptr;
     if (IntegratorName == "whitted")
-        integrator = CreateWhittedIntegrator(IntegratorParams, sampler, camera);
+        integrator = CreateWhittedIntegrator(IntegratorParams, sampler, camera, extractor);
     else if (IntegratorName == "directlighting")
         integrator =
-            CreateDirectLightingIntegrator(IntegratorParams, sampler, camera);
+            CreateDirectLightingIntegrator(IntegratorParams, sampler, camera, extractor);
     else if (IntegratorName == "path")
-        integrator = CreatePathIntegrator(IntegratorParams, sampler, camera);
+        integrator = CreatePathIntegrator(IntegratorParams, sampler, camera, extractor);
     else if (IntegratorName == "volpath")
-        integrator = CreateVolPathIntegrator(IntegratorParams, sampler, camera);
+        integrator = CreateVolPathIntegrator(IntegratorParams, sampler, camera, extractor);
     else if (IntegratorName == "bdpt") {
-        integrator = CreateBDPTIntegrator(IntegratorParams, sampler, camera);
+        integrator = CreateBDPTIntegrator(IntegratorParams, sampler, camera, extractor);
     } else if (IntegratorName == "mlt") {
-        integrator = CreateMLTIntegrator(IntegratorParams, camera);
+        integrator = CreateMLTIntegrator(IntegratorParams, camera, extractor);
     } else if (IntegratorName == "ambientocclusion") {
         integrator = CreateAOIntegrator(IntegratorParams, sampler, camera);
     } else if (IntegratorName == "sppm") {
