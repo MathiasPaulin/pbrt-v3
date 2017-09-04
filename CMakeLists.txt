@@ -79,6 +79,7 @@ ENDIF()
 
 IF(MSVC)
   ADD_DEFINITIONS (/D _CRT_SECURE_NO_WARNINGS)
+  ADD_DEFINITIONS (/D YY_NO_UNISTD_H)
 ENDIF()
 
 INCLUDE (CheckIncludeFiles)
@@ -326,6 +327,7 @@ INCLUDE_DIRECTORIES (
   ${CMAKE_BINARY_DIR}/src/ext/openexr/IlmBase/config
   ${CMAKE_BINARY_DIR}/src/ext/openexr/OpenEXR/config
 )
+
 IF(WIN32)
   SET(OPENEXR_LIBS IlmImf Imath Half ${ZLIB_LIBRARIES})
 ELSE()
@@ -460,6 +462,7 @@ FILE ( GLOB PBRT_SOURCE
   src/shapes/*.cpp
   src/textures/*.cpp
   src/media/*.cpp
+  src/extractors/*.cpp
   )
 
 INCLUDE_DIRECTORIES ( src )
@@ -528,6 +531,53 @@ ADD_SANITIZERS ( obj2pbrt )
 ADD_EXECUTABLE ( cyhair2pbrt src/tools/cyhair2pbrt.cpp )
 ADD_SANITIZERS ( cyhair2pbrt )
 
+ADD_EXECUTABLE ( pathtool
+        src/tools/pathtool.cpp
+        src/tools/classification/src/kmgen.cpp
+        src/tools/classification/src/kmedoids.cpp
+        )
+ADD_SANITIZERS ( pathtool )
+target_include_directories (pathtool PUBLIC src/tools/classification/src)
+
+SET_TARGET_PROPERTIES ( pathtool
+        PROPERTIES
+        OUTPUT_NAME pathtool
+        )
+
+TARGET_LINK_LIBRARIES ( pathtool
+        ${ALL_PBRT_LIBS}
+        )
+
+ADD_EXECUTABLE ( histtool
+        src/tools/histtool.cpp
+        )
+ADD_SANITIZERS ( histtool )
+
+TARGET_LINK_LIBRARIES ( bsdftest
+  pbrt
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${OPENEXR_LIBS}
+  glog
+  )
+
+TARGET_LINK_LIBRARIES ( imgtool
+  pbrt
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${OPENEXR_LIBS}
+  glog
+  )
+
+SET_TARGET_PROPERTIES ( histtool
+        PROPERTIES
+        OUTPUT_NAME histtool
+        )
+
+TARGET_LINK_LIBRARIES ( histtool
+        pbrt
+        ${CMAKE_THREAD_LIBS_INIT}
+        glog
+        )
+
 # Unit test
 
 FILE ( GLOB PBRT_TEST_SOURCE
@@ -548,6 +598,7 @@ INSTALL ( TARGETS
   pbrt_exe
   bsdftest
   imgtool
+  pathtool
   obj2pbrt
   cyhair2pbrt
   DESTINATION

@@ -6,6 +6,7 @@
 #include "api.h"
 #include "cameras/orthographic.h"
 #include "cameras/perspective.h"
+#include "extractors/extractor.h"
 #include "film.h"
 #include "filters/box.h"
 #include "geometry.h"
@@ -269,6 +270,7 @@ std::vector<TestIntegrator> GetIntegrators() {
 
     Point2i resolution(10, 10);
     AnimatedTransform identity(new Transform, 0, new Transform, 1);
+    std::shared_ptr<ExtractorManager> extractor = std::shared_ptr<ExtractorManager>(new ExtractorManager());
 
     for (auto scene : GetScenes()) {
         // Path tracing integrators
@@ -283,7 +285,7 @@ std::vector<TestIntegrator> GetIntegrators() {
                     0., 10., 45, film, nullptr);
 
             Integrator *integrator =
-                new PathIntegrator(8, camera, sampler.first,
+                new PathIntegrator(8, camera, sampler.first, extractor,
                                    film->croppedPixelBounds);
             integrators.push_back({integrator, film,
                                    "Path, depth 8, Perspective, " +
@@ -303,7 +305,7 @@ std::vector<TestIntegrator> GetIntegrators() {
                     1., 0., 10., film, nullptr);
 
             Integrator *integrator =
-                new PathIntegrator(8, camera, sampler.first,
+                new PathIntegrator(8, camera, sampler.first, extractor,
                                    film->croppedPixelBounds);
             integrators.push_back({integrator, film,
                                    "Path, depth 8, Ortho, " + sampler.second +
@@ -323,7 +325,7 @@ std::vector<TestIntegrator> GetIntegrators() {
                     0., 10., 45, film, nullptr);
 
             Integrator *integrator =
-                new VolPathIntegrator(8, camera, sampler.first,
+                new VolPathIntegrator(8, camera, sampler.first, extractor,
                                       film->croppedPixelBounds);
             integrators.push_back({integrator, film,
                                    "VolPath, depth 8, Perspective, " +
@@ -342,7 +344,7 @@ std::vector<TestIntegrator> GetIntegrators() {
                     1., 0., 10., film, nullptr);
 
             Integrator *integrator =
-                new VolPathIntegrator(8, camera, sampler.first,
+                new VolPathIntegrator(8, camera, sampler.first, extractor,
                                       film->croppedPixelBounds);
             integrators.push_back({integrator, film,
                                    "VolPath, depth 8, Ortho, " +
@@ -363,7 +365,7 @@ std::vector<TestIntegrator> GetIntegrators() {
                     0., 10., 45, film, nullptr);
 
             Integrator *integrator =
-                new BDPTIntegrator(sampler.first, camera, 6, false, false,
+                new BDPTIntegrator(sampler.first, camera, extractor, 6, false, false,
                                    film->croppedPixelBounds);
             integrators.push_back({integrator, film,
                                    "BDPT, depth 8, Perspective, " +
@@ -401,7 +403,7 @@ std::vector<TestIntegrator> GetIntegrators() {
                     0., 10., 45, film, nullptr);
 
             Integrator *integrator = new MLTIntegrator(
-                camera, 8 /* depth */, 100000 /* n bootstrap */,
+                camera, extractor, 8 /* depth */, 100000 /* n bootstrap */,
                 1000 /* nchains */, 1024 /* mutations per pixel */,
                 0.01 /* sigma */, 0.3 /* large step prob */);
             integrators.push_back(

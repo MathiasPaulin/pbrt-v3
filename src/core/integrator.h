@@ -39,6 +39,7 @@
 #define PBRT_CORE_INTEGRATOR_H
 
 // core/integrator.h*
+#include <extractors/extractor.h>
 #include "pbrt.h"
 #include "primitive.h"
 #include "spectrum.h"
@@ -79,21 +80,25 @@ class SamplerIntegrator : public Integrator {
     // SamplerIntegrator Public Methods
     SamplerIntegrator(std::shared_ptr<const Camera> camera,
                       std::shared_ptr<Sampler> sampler,
+                      std::shared_ptr<ExtractorManager> extractor,
                       const Bounds2i &pixelBounds)
-        : camera(camera), sampler(sampler), pixelBounds(pixelBounds) {}
+        : camera(camera), sampler(sampler), extractor(extractor), pixelBounds(pixelBounds) {}
     virtual void Preprocess(const Scene &scene, Sampler &sampler) {}
     void Render(const Scene &scene);
     virtual Spectrum Li(const RayDifferential &ray, const Scene &scene,
                         Sampler &sampler, MemoryArena &arena,
-                        int depth = 0) const = 0;
+                        int depth = 0) const { return Spectrum(0.f); }
+    virtual Spectrum Li(const RayDifferential &ray, const Scene &scene,
+                        Sampler &sampler, MemoryArena &arena,
+                        Containers &container, int depth = 0) const = 0;
     Spectrum SpecularReflect(const RayDifferential &ray,
                              const SurfaceInteraction &isect,
                              const Scene &scene, Sampler &sampler,
-                             MemoryArena &arena, int depth) const;
+                             MemoryArena &arena, Containers &container, int depth) const;
     Spectrum SpecularTransmit(const RayDifferential &ray,
                               const SurfaceInteraction &isect,
                               const Scene &scene, Sampler &sampler,
-                              MemoryArena &arena, int depth) const;
+                              MemoryArena &arena, Containers &container, int depth) const;
 
   protected:
     // SamplerIntegrator Protected Data
@@ -102,6 +107,7 @@ class SamplerIntegrator : public Integrator {
   private:
     // SamplerIntegrator Private Data
     std::shared_ptr<Sampler> sampler;
+    std::shared_ptr<ExtractorManager> extractor;
     const Bounds2i pixelBounds;
 };
 

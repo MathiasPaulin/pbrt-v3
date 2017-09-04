@@ -45,8 +45,9 @@ namespace pbrt {
 AOIntegrator::AOIntegrator(bool cosSample, int ns,
                            std::shared_ptr<const Camera> camera,
                            std::shared_ptr<Sampler> sampler,
+                           std::shared_ptr<ExtractorManager> extractor,
                            const Bounds2i &pixelBounds)
-    : SamplerIntegrator(camera, sampler, pixelBounds),
+    : SamplerIntegrator(camera, sampler, extractor, pixelBounds),
       cosSample(cosSample) {
     nSamples = sampler->RoundCount(ns);
     if (ns != nSamples)
@@ -56,10 +57,12 @@ AOIntegrator::AOIntegrator(bool cosSample, int ns,
 
 Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
                           Sampler &sampler, MemoryArena &arena,
+                          Containers &container,
                           int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
     Spectrum L(0.f);
     RayDifferential ray(r);
+    container.Init(ray, depth, scene);
 
     // Intersect _ray_ with scene and store intersection in _isect_
     SurfaceInteraction isect;
@@ -71,7 +74,8 @@ Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
             ray = isect.SpawnRay(ray.d);
             goto retry;
         }
-
+        // Report intersection data FIXME: Is it the right way to do this ?
+        // container.ReportData(isect);
         // Compute coordinate frame based on true geometry, not shading
         // geometry.
         Normal3f n = Faceforward(isect.n, -ray.d);
@@ -104,7 +108,7 @@ Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
 
 AOIntegrator *CreateAOIntegrator(const ParamSet &params,
                                  std::shared_ptr<Sampler> sampler,
-                                 std::shared_ptr<const Camera> camera) {
+                                 std::shared_ptr<const Camera> camera, std::shared_ptr<ExtractorManager> extractor) {
     int np;
     const int *pb = params.FindInt("pixelbounds", &np);
     Bounds2i pixelBounds = camera->film->GetSampleBounds();
@@ -122,7 +126,7 @@ AOIntegrator *CreateAOIntegrator(const ParamSet &params,
     Float rrThreshold = params.FindOneFloat("rrthreshold", 1.);
     bool cosSample = params.FindOneBool("cossample", "true");
     int nSamples = params.FindOneInt("nsamples", 64);
-    return new AOIntegrator(cosSample, nSamples, camera, sampler, pixelBounds);
+    return new AOIntegrator(cosSample, nSamples, camera, sampler, extractor, pixelBounds);
 }
 
 }  // namespace pbrt

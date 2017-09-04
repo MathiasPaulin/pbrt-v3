@@ -51,9 +51,10 @@ class AOIntegrator : public SamplerIntegrator {
     AOIntegrator(bool cosSample, int nSamples,
                  std::shared_ptr<const Camera> camera,
                  std::shared_ptr<Sampler> sampler,
+                 std::shared_ptr<ExtractorManager> extractor,
                  const Bounds2i &pixelBounds);
     Spectrum Li(const RayDifferential &ray, const Scene &scene,
-                Sampler &sampler, MemoryArena &arena, int depth) const;
+                Sampler &sampler, MemoryArena &arena, Containers &container, int depth) const;
  private:
     bool cosSample;
     int nSamples;
@@ -61,7 +62,8 @@ class AOIntegrator : public SamplerIntegrator {
 
 AOIntegrator *CreateAOIntegrator(const ParamSet &params,
                                  std::shared_ptr<Sampler> sampler,
-                                 std::shared_ptr<const Camera> camera);
+                                 std::shared_ptr<const Camera> camera,
+                                 std::shared_ptr<ExtractorManager> extractor);
 
 }  // namespace pbrt
 

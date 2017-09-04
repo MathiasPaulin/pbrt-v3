@@ -138,6 +138,7 @@ ConcatTransform         { return CONCATTRANSFORM; }
 CoordinateSystem        { return COORDINATESYSTEM; }
 CoordSysTransform       { return COORDSYSTRANSFORM; }
 EndTime                 { return ENDTIME; }
+Extractor               { return EXTRACTOR; }
 Film                    { return FILM; }
 Identity                { return IDENTITY; }
 Include                 { return INCLUDE; }
