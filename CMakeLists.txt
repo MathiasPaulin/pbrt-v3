@@ -432,7 +432,6 @@ SET ( PBRT_CORE_HEADERS
   src/core/paramset.h
   src/core/parser.h
   src/core/pbrt.h
-  src/core/port.h
   src/core/primitive.h
   src/core/progressreporter.h
   src/core/quaternion.h
@@ -534,8 +533,20 @@ ADD_SANITIZERS ( cyhair2pbrt )
 
 ADD_EXECUTABLE ( pathtool
         src/tools/pathtool.cpp
+        src/tools/classification/src/kmgen.cpp
+        src/tools/classification/src/kmedoids.cpp
         )
 ADD_SANITIZERS ( pathtool )
+target_include_directories (pathtool PUBLIC src/tools/classification/src)
+
+SET_TARGET_PROPERTIES ( pathtool
+        PROPERTIES
+        OUTPUT_NAME pathtool
+        )
+
+TARGET_LINK_LIBRARIES ( pathtool
+        ${ALL_PBRT_LIBS}
+        )
 
 ADD_EXECUTABLE ( histtool
         src/tools/histtool.cpp
@@ -555,18 +566,6 @@ TARGET_LINK_LIBRARIES ( imgtool
   ${OPENEXR_LIBS}
   glog
   )
-
-SET_TARGET_PROPERTIES ( pathtool
-        PROPERTIES
-        OUTPUT_NAME pathtool
-        )
-
-TARGET_LINK_LIBRARIES ( pathtool
-        pbrt
-        kmgen
-        ${CMAKE_THREAD_LIBS_INIT}
-        glog
-        )
 
 SET_TARGET_PROPERTIES ( histtool
         PROPERTIES

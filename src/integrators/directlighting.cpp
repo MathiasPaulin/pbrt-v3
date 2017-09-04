@@ -63,7 +63,7 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
                                       const Scene &scene, Sampler &sampler,
                                       MemoryArena &arena, Containers &container, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
-  container.Init(ray, depth, scene);
+    container.Init(ray, depth, scene);
 
     Spectrum L(0.f);
     // Find closest ray intersection or return background radiance

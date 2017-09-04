@@ -261,7 +261,7 @@ void filter_by_location(int argc, char* argv[]) {
 }
 
 void filter_by_regex(int argc, char* argv[]) {
-  if(argc != 4) {
+  if(argc != 5) {
     pbrt::usage();
   }
 
@@ -272,7 +272,29 @@ void filter_by_regex(int argc, char* argv[]) {
   std::copy_if(file.begin(), file.end(), std::back_inserter(resultpaths),
                [&](const pbrt::path_entry &p) { return regMatch(p, regex); });
 
-  std::cout << "Number of paths matching : " << resultpaths.size() << std::endl;
+//  std::cout << "Number of paths matching : " << resultpaths.size() << std::endl;
+
+  std::cerr << "Reconstrucing " << regex << " paths (" << resultpaths.size() <<") ... " << std::endl;
+
+  std::string outputfile(argv[4]);
+  pbrt::Film *film =  new pbrt::Film(pbrt::Point2i(1024,1024),
+                                     pbrt::Bounds2f(pbrt::Point2f(0, 0), pbrt::Point2f(1, 1)),
+                                     std::unique_ptr<pbrt::Filter>(new pbrt::TriangleFilter(pbrt::Vector2f(1.f, 1.f))), 35.f, outputfile, 1.f);
+
+  std::unique_ptr<pbrt::FilmTile> tile(film->GetFilmTile(pbrt::Bounds2i(pbrt::Point2i(0,0), pbrt::Point2i(1024,1024))));
+
+
+  for(const pbrt::path_entry &p : resultpaths) {
+    if(p.pathlen == 0) continue;
+    pbrt::Point2f samplepoint(p.pFilm[0], p.pFilm[1]);
+    pbrt::Spectrum bsdf = pbrt::Spectrum::FromRGB(&p.L[0]);
+    //std::cerr << "Adding path " << samplepoint << "with bsdf = " << bsdf << std::endl;
+    tile->AddSample(samplepoint, bsdf);
+  }
+
+  film->MergeFilmTile(std::move(tile));
+  film->WriteImage();
+  std::cerr << " ... done!" << std::endl;
 }
 
 

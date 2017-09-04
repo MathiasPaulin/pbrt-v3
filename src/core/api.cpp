@@ -1519,7 +1519,7 @@ Integrator *RenderOptions::MakeIntegrator() const {
     } else if (IntegratorName == "mlt") {
         integrator = CreateMLTIntegrator(IntegratorParams, camera, extractor);
     } else if (IntegratorName == "ambientocclusion") {
-        integrator = CreateAOIntegrator(IntegratorParams, sampler, camera);
+        integrator = CreateAOIntegrator(IntegratorParams, sampler, camera, extractor);
     } else if (IntegratorName == "sppm") {
         integrator = CreateSPPMIntegrator(IntegratorParams, camera);
     } else {
