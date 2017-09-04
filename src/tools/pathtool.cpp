@@ -39,7 +39,7 @@ static void usage(const char *msg = nullptr, ...) {
   }
   fprintf(stderr, R"(usage: pathtool <command> [options] <filenames...>
 
-commands: cat, aligncheck, spherefilter, regexfilter, lengthfilter
+commands: cat, aligncheck, spherefilter, regexfilter, lengthfilter, kmeans, kmedoids, leveinstein, toimg
 
 cat option:
     --outfile          Output file name
@@ -48,10 +48,22 @@ lengthfilter option:
     syntax: pathtool lengthfilter <length> <filename>
 
 regexfilter option:
-    syntax: pathtool regexfilter <regex> <filename>
+    syntax: pathtool regexfilter <regex> <filename> <out_image>
 
 spherefilter option:
     syntax: pathtool spherefilter <radius> <x> <y> <z> <filename>
+
+kmeans option:
+    syntax: pathtool kmeans <k> <filename>
+
+kmedoids option:
+    syntax: pathtool kmedoids <k> <filename>
+
+leveinstein option:
+    syntax: pathtool leveinstein <k> <filename>
+
+toimg option:
+    syntax: pathtool toimg <filename> <out_image>
 
 )");
   exit(1);
@@ -298,7 +310,9 @@ void filter_by_regex(int argc, char* argv[]) {
 }
 
 
-void distance_classification(int argc, char* argv[]) {
+void kmeans_classification(int argc, char* argv[]) {
+  // argv[2] = numclusters
+  // argv[3] = pathfile
   if(argc < 3) {
     pbrt::usage("Missing arguments");
     return;
@@ -321,6 +335,8 @@ void distance_classification(int argc, char* argv[]) {
 }
 
 void leveinstein_classification(int argc, char* argv[]) {
+  // argv[2] = numclusters
+  // argv[3] = pathfile
   if(argc < 3) {
     pbrt::usage("Missing arguments");
     return;
@@ -341,7 +357,7 @@ void leveinstein_classification(int argc, char* argv[]) {
   std::cout << "Classification results:" << std::endl;
   for (int i = 0; i < labels.size(); ++i) {
     std::cout << "New label. Size " << labels[i]->size() << std::endl;
-    std::string fname = "labels_" + std::to_string(i) + ".exr";
+    std::string fname = "leveinstein_" + std::to_string(i) + ".exr";
     label_to_img(file, fname, 1024, 1024, .35f, labels[i]->elements);
   }
 
@@ -369,7 +385,9 @@ void label_to_img(PathFile &paths, const std::string &filename, int xres, int yr
   film->WriteImage();
 }
 
-void pathdist_classification(int argc, char* argv[]) {
+void kmedoids_classification(int argc, char* argv[]) {
+  // argv[2] = numclusters
+  // argv[3] = pathfile
   if(argc < 3) {
     pbrt::usage("Missing arguments");
     return;
@@ -390,7 +408,7 @@ void pathdist_classification(int argc, char* argv[]) {
   std::cout << "Classification results:" << std::endl;
   for (int i = 0; i < labels.size(); ++i) {
     std::cout << "New label. Size " << labels[i]->size() << std::endl;
-    std::string fname = "labels_" + std::to_string(i) + ".exr";
+    std::string fname = "kmedoids_" + std::to_string(i) + ".exr";
     label_to_img(file, fname, 1024, 1024, .35f, labels[i]->elements);
   }
 
@@ -442,11 +460,11 @@ int main(int argc, char* argv[]) {
     filter_by_location(argc, argv);
   } else if (!strcmp(argv[1], "cat2")) {
     pbrt::bin_to_txt2(argc, argv);
-  } else if(!strcmp(argv[1], "distance")) {
-    distance_classification(argc, argv);
-  } else if(!strcmp(argv[1], "pathdist")) {
-    pathdist_classification(argc, argv);
-  } else if(!strcmp(argv[1], "lev")) {
+  } else if(!strcmp(argv[1], "kmeans")) {
+    kmeans_classification(argc, argv);
+  } else if(!strcmp(argv[1], "kmedoids")) {
+    kmedoids_classification(argc, argv);
+  } else if(!strcmp(argv[1], "leveinstein")) {
     leveinstein_classification(argc, argv);
   } else if(!strcmp(argv[1], "toimg")) {
     path_to_img(argc, argv);
