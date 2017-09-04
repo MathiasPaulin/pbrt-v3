@@ -125,7 +125,9 @@ std::vector<path_entry> PathExtractorContainer::GetPaths() {
                     path_entry entry;
 
                     // Discard empty paths
-                    if((entry.path = p.GetPathExpression()) == "")
+                    entry.path = p.GetPathExpression();
+                    //if((entry.path = p.GetPathExpression()) == "")
+                    if (entry.path.empty())
                       return;
 
                     entry.regex = regexpr;

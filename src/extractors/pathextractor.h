@@ -82,7 +82,7 @@ struct Path {
     std::vector<PathVertex> vertices;
 
     std::string GetPathExpression() const {
-      std::string s = "";
+      std::string s; // Mathias : Changed
       for(const PathVertex &v : vertices) {
         s += VertexNames[(int)(v.type)];
       }

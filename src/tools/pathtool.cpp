@@ -208,12 +208,6 @@ void bin_to_txt2(int argc, char *argv[]) {
 // Path select functions
 
 
-// Regex match
-static bool regMatch(const pbrt::path_entry &path, const std::string &regexstr) {
-  std::regex reg(regexstr);
-  return !strcmp(regexstr.c_str(), path.regex.c_str()) | std::regex_match(path.path, reg);
-}
-
 // Vertices around a sphere of radius r
 static bool sphereSearch(const pbrt::path_entry &path, float r, float pos[3]) {
   for (const pbrt::vertex_entry &v : path.vertices) {
@@ -272,6 +266,14 @@ void filter_by_location(int argc, char* argv[]) {
   std::cout << "Number of paths matching : " << resultpaths.size() << std::endl;
 }
 
+
+// Regex match
+static bool regMatch(const pbrt::path_entry &path, const std::string &regexstr) {
+    std::regex reg(regexstr);
+    return std::regex_match(path.path, reg);
+//    return !strcmp(regexstr.c_str(), path.regex.c_str()) | std::regex_match(path.path, reg);
+}
+
 void filter_by_regex(int argc, char* argv[]) {
   if(argc != 5) {
     pbrt::usage();
@@ -286,7 +288,7 @@ void filter_by_regex(int argc, char* argv[]) {
 
 //  std::cout << "Number of paths matching : " << resultpaths.size() << std::endl;
 
-  std::cerr << "Reconstrucing " << regex << " paths (" << resultpaths.size() <<") ... " << std::endl;
+  std::cerr << "Reconstructing " << regex << " paths (" << resultpaths.size() <<") ... " << std::endl;
 
   std::string outputfile(argv[4]);
   pbrt::Film *film =  new pbrt::Film(pbrt::Point2i(1024,1024),
@@ -398,7 +400,8 @@ void kmedoids_classification(int argc, char* argv[]) {
   const int k = std::atoi(argv[2]);
   PathFile file(argv[3]);
   // TODO: CreateGenerator
-  std::shared_ptr<Kmedoids::CentroidGenerator> generator(new Kmedoids::PathDistanceGenerator(file));
+//  std::shared_ptr<Kmedoids::CentroidGenerator> generator(new Kmedoids::PathDistanceGenerator(file));
+  std::shared_ptr<Kmedoids::CentroidGenerator> generator(new Kmedoids::LevenshteinGenerator(file));
   Kmedoids::Classifier classifier(k, file, generator, samplesize, iterations);
 
   classifier.run();
@@ -441,7 +444,7 @@ void path_to_img(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 
-  if(argc == 1) {
+    if(argc == 1) {
     pbrt::usage("");
     return 1;
   }
