@@ -326,6 +326,10 @@ void SamplerIntegrator::Render(const Scene &scene) {
                     VLOG(1) << "Camera sample: " << cameraSample << " -> ray: " <<
                         ray << " -> L = " << L;
 
+                    // Registering path with final luminance
+                    Spectrum pathspectrum = L * rayWeight;
+                    container->ReportData(pathspectrum);
+
                     // Add camera ray's contribution to image
                     filmTile->AddSample(cameraSample.pFilm, L, rayWeight);
 

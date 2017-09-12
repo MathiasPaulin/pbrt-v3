@@ -12,21 +12,24 @@
 #include "core/memory.h"
 #include "extractors/pathio.h"
 #include <iomanip>
+
 namespace pbrt {
 
 class PathOutput {
-  public:
+public:
     PathOutput(const std::string &filename) : filename(filename), f(filename, std::ios::binary), npaths(0) {
         // Reserve space for header
-        const int headersize = 23+15; // 2^64 ~= 1e19 + 15 characters for the header
+        const int headersize = 23 + 15; // 2^64 ~= 1e19 + 15 characters for the header
         f << std::left << std::setw(headersize) << "Path file; n =" << " " << std::endl;
     }
 
     std::unique_ptr<PathOutputTile> GetPathTile();
+
     void MergePathTile(std::unique_ptr<PathOutputTile> tile);
 
     void WriteFile();
-  private:
+
+private:
     void AppendPaths(const std::vector<path_entry> &entries);
 
     std::mutex mutex;
@@ -37,13 +40,15 @@ class PathOutput {
 };
 
 class PathOutputTile {
-  public:
+public:
     void AddSample(const Point2f &pFilm, std::shared_ptr<Container> container);
-  private:
+
+private:
     MemoryArena arena; // Path storage arena
     // Path entries
     const Bounds2i pixelBounds;
     std::vector<path_entry> tilepaths;
+
     friend class PathOutput;
 };
 

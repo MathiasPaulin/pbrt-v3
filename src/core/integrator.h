@@ -87,7 +87,10 @@ class SamplerIntegrator : public Integrator {
     void Render(const Scene &scene);
     virtual Spectrum Li(const RayDifferential &ray, const Scene &scene,
                         Sampler &sampler, MemoryArena &arena,
-                        int depth = 0) const { return Spectrum(0.f); }
+                        int depth = 0) const {
+                            // FIXME : this API modification is not a good idea
+                            return Spectrum(0.f);
+                        }
     virtual Spectrum Li(const RayDifferential &ray, const Scene &scene,
                         Sampler &sampler, MemoryArena &arena,
                         Containers &container, int depth = 0) const = 0;

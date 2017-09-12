@@ -1442,6 +1442,8 @@ void pbrtWorldEnd() {
         CHECK_EQ(CurrentProfilerState(), ProfToBits(Prof::SceneConstruction));
         ProfilerState = ProfToBits(Prof::IntegratorRender);
 
+        // FIXME - Extractors : allow here to get scene parameters for output (Film, Pixel Filter, Camera, ...)
+        // FIXME - FInd a way to set a hook to work on parsed scene and integrator (usefull for making an OpenGL based gui)
         if (scene && integrator) integrator->Render(*scene);
 
         CHECK_EQ(CurrentProfilerState(), ProfToBits(Prof::IntegratorRender));
