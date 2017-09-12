@@ -89,8 +89,6 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
         SurfaceInteraction isect;
         bool foundIntersection = scene.Intersect(ray, &isect);
 
-
-
         // Possibly add emitted light at intersection
         if (bounces == 0 || specularBounce) {
             // Add emitted light at path vertex or from the environment
@@ -110,15 +108,13 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
         // Compute scattering functions and skip over medium boundaries
         isect.ComputeScatteringFunctions(ray, arena, true);
 
-        // Report intersection to container
-        container.ReportData(isect);
-
         if (!isect.bsdf) {
             VLOG(2) << "Skipping intersection due to null bsdf";
             ray = isect.SpawnRay(ray.d);
             bounces--;
             continue;
         }
+
 
         const Distribution1D *distrib = lightDistribution->Lookup(isect.p);
 
@@ -141,6 +137,12 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
         BxDFType flags;
         Spectrum f = isect.bsdf->Sample_f(wo, &wi, sampler.Get2D(), &pdf,
                                           BSDF_ALL, &flags);
+
+        // Report intersection to container
+        container.ReportData(isect);
+        // Collect BSDF spectrum, pdf, rev_pdf and type
+        container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+
         VLOG(2) << "Sampled BSDF, f = " << f << ", pdf = " << pdf;
         if (f.IsBlack() || pdf == 0.f) break;
         beta *= f * AbsDot(wi, isect.shading.n) / pdf;
@@ -181,9 +183,6 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             ray = pi.SpawnRay(wi);
         }
 
-        // Collect BSDF spectrum, pdf, rev_pdf and type
-        container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
-
         // Possibly terminate the path with Russian roulette.
         // Factor out radiance scaling due to refraction in rrBeta.
         Spectrum rrBeta = beta * etaScale;
@@ -194,7 +193,7 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             DCHECK(!std::isinf(beta.y()));
         }
     }
-    container.ReportData(L);
+
     ReportValue(pathLength, bounces);
     return L;
 }

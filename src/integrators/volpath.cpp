@@ -96,6 +96,11 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             Vector3f wo = -ray.d, wi;
             mi.phase->Sample_p(wo, &wi, sampler.Get2D());
             ray = mi.SpawnRay(wi);
+
+            // FIXME : collect path vertex informations and register them on container.
+            // see below
+            // container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+
         } else {
             ++surfaceInteractions;
             // Handle scattering at point on surface for volumetric path tracer
@@ -177,6 +182,10 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
                 specularBounce = (flags & BSDF_SPECULAR) != 0;
                 ray = pi.SpawnRay(wi);
             }
+
+            // Collect BSDF spectrum, pdf, rev_pdf and type
+            container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+
         }
 
         // Possibly terminate the path with Russian roulette

@@ -13,9 +13,9 @@
 namespace pbrt {
 
 void PathOutputTile::AddSample(const Point2f &pFilm, std::shared_ptr<Container> container) {
-  VLOG(2) << "New path sample";
   ProfilePhase p(Prof::AddPathSample);
   std::vector<path_entry> entries = container->GetPaths();
+  VLOG(1) << "PathOutputTile : adding " << entries.size() << " paths.\n";
   tilepaths.insert(tilepaths.end(), entries.begin(), entries.end());
 }
 
