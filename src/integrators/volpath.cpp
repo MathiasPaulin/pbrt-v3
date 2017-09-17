@@ -54,7 +54,7 @@ void VolPathIntegrator::Preprocess(const Scene &scene, Sampler &sampler) {
 
 Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
                                Sampler &sampler, MemoryArena &arena,
-                               Containers &container, int depth) const {
+                               Extractor &container, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
     Spectrum L(0.f), beta(1.f);
     RayDifferential ray(r);
@@ -70,7 +70,8 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
     Float etaScale = 1;
 
     for (bounces = 0;; ++bounces) {
-      container.Init(ray, bounces, scene);
+        container.StartPath(r, bounces, scene);
+
         // Intersect _ray_ with scene and store intersection in _isect_
         SurfaceInteraction isect;
         bool foundIntersection = scene.Intersect(ray, &isect);
@@ -99,7 +100,7 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
 
             // FIXME : collect path vertex informations and register them on container.
             // see below
-            // container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+            //container.AddPathVertex(isect, std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
 
         } else {
             ++surfaceInteractions;
@@ -121,8 +122,6 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             // Compute scattering functions and skip over medium boundaries
             isect.ComputeScatteringFunctions(ray, arena, true);
 
-            // Report intersection data to container
-            container.ReportData(isect);
 
             if (!isect.bsdf) {
                 ray = isect.SpawnRay(ray.d);
@@ -184,7 +183,7 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             }
 
             // Collect BSDF spectrum, pdf, rev_pdf and type
-            container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+            container.AddPathVertex(isect, std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
 
         }
 
@@ -205,7 +204,7 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
 VolPathIntegrator *CreateVolPathIntegrator(
     const ParamSet &params, std::shared_ptr<Sampler> sampler,
     std::shared_ptr<const Camera> camera,
-    std::shared_ptr<ExtractorManager> extractor) {
+    std::shared_ptr<Extractor> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     int np;
     const int *pb = params.FindInt("pixelbounds", &np);

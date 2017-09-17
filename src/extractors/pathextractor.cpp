@@ -12,7 +12,7 @@
 #include <algorithm>
 
 namespace pbrt {
-
+#if 0
 void PathExtractorContainer::Init(const RayDifferential &r, int depth, const Scene &Scene) {
     // Path tracing bounce init
     if (depth == 0) {
@@ -190,5 +190,5 @@ Extractor *CreatePathExtractor(const ParamSet &params, const Point2i &fullResolu
                 35.f, filename, 1.f));
     }
 }
-
+#endif
 }

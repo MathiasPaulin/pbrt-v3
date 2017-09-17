@@ -61,9 +61,9 @@ void DirectLightingIntegrator::Preprocess(const Scene &scene,
 
 Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
                                       const Scene &scene, Sampler &sampler,
-                                      MemoryArena &arena, Containers &container, int depth) const {
+                                      MemoryArena &arena, Extractor &container, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
-    container.Init(ray, depth, scene);
+    container.StartPath(ray, depth, scene);
 
     Spectrum L(0.f);
     // Find closest ray intersection or return background radiance
@@ -73,13 +73,9 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
         return L;
     }
 
-
-
     // Compute scattering functions for surface interaction
     isect.ComputeScatteringFunctions(ray, arena);
 
-    // Report intersection data
-    container.ReportData(isect);
 
     if (!isect.bsdf)
         return Li(isect.SpawnRay(ray.d), scene, sampler, arena, container, depth);
@@ -94,6 +90,9 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
         else
             L += UniformSampleOneLight(isect, scene, arena, sampler);
     }
+
+    container.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
+
     if (depth + 1 < maxDepth) {
         Vector3f wi;
         // Trace rays for specular reflection and refraction
@@ -105,7 +104,7 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
 
 DirectLightingIntegrator *CreateDirectLightingIntegrator(
     const ParamSet &params, std::shared_ptr<Sampler> sampler,
-    std::shared_ptr<const Camera> camera, std::shared_ptr<ExtractorManager> extractor) {
+    std::shared_ptr<const Camera> camera, std::shared_ptr<Extractor> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     LightStrategy strategy;
     std::string st = params.FindOneString("strategy", "all");

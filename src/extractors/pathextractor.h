@@ -11,7 +11,7 @@
 #include "extractors/pathio.h"
 
 namespace pbrt {
-
+#if 0
     enum class VertexInteraction {
         Camera, Light, Diffuse, Specular, Undef
     };
@@ -170,6 +170,7 @@ namespace pbrt {
             return std::unique_ptr<PathExtractorContainer>(new PathExtractorContainer(p, r, expr));
         }
 
+        ExtractorType GetType() const { return ExtractorType::PATH_EXTRACTOR; }
     private:
         const std::regex r;
         const std::string expr;
@@ -178,7 +179,7 @@ namespace pbrt {
 
     Extractor *CreatePathExtractor(const ParamSet &params, const Point2i &fullResolution,
                                    const Float diagonal, const std::string &imageFilename);
-
+#endif
 }
 
 #endif //PBRT_EXTRACTOR_PATH_H

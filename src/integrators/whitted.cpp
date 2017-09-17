@@ -43,17 +43,15 @@ namespace pbrt {
 // WhittedIntegrator Method Definitions
 Spectrum WhittedIntegrator::Li(const RayDifferential &ray, const Scene &scene,
                                Sampler &sampler, MemoryArena &arena,
-                               Containers &container, int depth) const {
+                               Extractor &container, int depth) const {
     Spectrum L(0.);
-    container.Init(ray, depth, scene);
+    container.StartPath(ray, depth, scene);
     // Find closest ray intersection or return background radiance
     SurfaceInteraction isect;
     if (!scene.Intersect(ray, &isect)) {
         for (const auto &light : scene.lights) L += light->Le(ray);
         return L;
     }
-
-
 
     // Compute emitted and reflected light at ray intersection point
 
@@ -65,7 +63,6 @@ Spectrum WhittedIntegrator::Li(const RayDifferential &ray, const Scene &scene,
     isect.ComputeScatteringFunctions(ray, arena);
 
     // Report intersection data to container
-    container.ReportData(isect);
 
     if (!isect.bsdf)
         return Li(isect.SpawnRay(ray.d), scene, sampler, arena, container, depth);
@@ -85,6 +82,8 @@ Spectrum WhittedIntegrator::Li(const RayDifferential &ray, const Scene &scene,
         if (!f.IsBlack() && visibility.Unoccluded(scene))
             L += f * Li * AbsDot(wi, n) / pdf;
     }
+    container.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
+
     if (depth + 1 < maxDepth) {
         // Trace rays for specular reflection and refraction
         L += SpecularReflect(ray, isect, scene, sampler, arena, container, depth);
@@ -95,7 +94,7 @@ Spectrum WhittedIntegrator::Li(const RayDifferential &ray, const Scene &scene,
 
 WhittedIntegrator *CreateWhittedIntegrator(
     const ParamSet &params, std::shared_ptr<Sampler> sampler,
-    std::shared_ptr<const Camera> camera, std::shared_ptr<ExtractorManager> extractor) {
+    std::shared_ptr<const Camera> camera, std::shared_ptr<Extractor> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     int np;
     const int *pb = params.FindInt("pixelbounds", &np);

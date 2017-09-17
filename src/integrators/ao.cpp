@@ -45,7 +45,7 @@ namespace pbrt {
 AOIntegrator::AOIntegrator(bool cosSample, int ns,
                            std::shared_ptr<const Camera> camera,
                            std::shared_ptr<Sampler> sampler,
-                           std::shared_ptr<ExtractorManager> extractor,
+                           std::shared_ptr<Extractor> extractor,
                            const Bounds2i &pixelBounds)
     : SamplerIntegrator(camera, sampler, extractor, pixelBounds),
       cosSample(cosSample) {
@@ -57,12 +57,12 @@ AOIntegrator::AOIntegrator(bool cosSample, int ns,
 
 Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
                           Sampler &sampler, MemoryArena &arena,
-                          Containers &container,
+                          Extractor &container,
                           int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
     Spectrum L(0.f);
     RayDifferential ray(r);
-    container.Init(ray, depth, scene);
+    container.StartPath(ray, depth, scene);
 
     // Intersect _ray_ with scene and store intersection in _isect_
     SurfaceInteraction isect;
@@ -102,13 +102,14 @@ Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
             if (!scene.IntersectP(isect.SpawnRay(wi)))
                 L += Dot(wi, n) / (pdf * nSamples);
         }
+        container.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
     }
     return L;
 }
 
 AOIntegrator *CreateAOIntegrator(const ParamSet &params,
                                  std::shared_ptr<Sampler> sampler,
-                                 std::shared_ptr<const Camera> camera, std::shared_ptr<ExtractorManager> extractor) {
+                                 std::shared_ptr<const Camera> camera, std::shared_ptr<Extractor> extractor) {
     int np;
     const int *pb = params.FindInt("pixelbounds", &np);
     Bounds2i pixelBounds = camera->film->GetSampleBounds();

@@ -15,6 +15,7 @@
 
 namespace pbrt {
 
+#if 0
 class PathOutput {
 public:
     PathOutput(const std::string &filename) : filename(filename), f(filename, std::ios::binary), npaths(0) {
@@ -53,6 +54,7 @@ private:
 };
 
 PathOutput *CreatePathOutput(const ParamSet &params);
+#endif
 
 } // namespace pbrt
 

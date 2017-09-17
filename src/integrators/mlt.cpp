@@ -160,10 +160,10 @@ Spectrum MLTIntegrator::L(const Scene &scene, MemoryArena &arena,
     sampler.StartStream(connectionStreamIndex);
 
     // Get a new container for reporting
-    std::unique_ptr<Containers> container = extractor->GetNewContainer(*pRaster);
+    extractor->InitPath(*pRaster);
 
     return ConnectBDPT(scene, lightVertices, cameraVertices, s, t, *lightDistr,
-                       lightToIndex, *camera, sampler, pRaster, *container) *
+                       lightToIndex, *camera, sampler, pRaster, *extractor) *
            nStrategies;
 }
 
@@ -272,7 +272,7 @@ void MLTIntegrator::Render(const Scene &scene) {
 
 MLTIntegrator *CreateMLTIntegrator(const ParamSet &params,
                                    std::shared_ptr<const Camera> camera,
-                                   std::shared_ptr<ExtractorManager> extractor) {
+                                   std::shared_ptr<Extractor> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     int nBootstrap = params.FindOneInt("bootstrapsamples", 100000);
     int64_t nChains = params.FindOneInt("chains", 1000);

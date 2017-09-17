@@ -264,8 +264,8 @@ void SamplerIntegrator::Render(const Scene &scene) {
                 camera->film->GetFilmTile(tileBounds);
 
             // Get _FilmTile_ for extractors
-            std::unique_ptr<ExtractorTileManager> extractorTiles =
-                    extractor->GetNewExtractorTile(tileBounds);
+            std::unique_ptr<Extractor> extractorTiles =
+                    extractor->StartTile(tileBounds);
 
             // Loop over pixels in tile to render them
             for (Point2i pixel : tileBounds) {
@@ -281,7 +281,12 @@ void SamplerIntegrator::Render(const Scene &scene) {
                 if (!InsideExclusive(pixel, pixelBounds))
                     continue;
 
+                // initialize current pixel statistics
+                float mean = 0, m2_n = 0.0f;
+                int  sample_count = 0;
+
                 do {
+
                     // Initialize _CameraSample_ for current sample
                     CameraSample cameraSample =
                         tileSampler->GetCameraSample(pixel);
@@ -294,11 +299,11 @@ void SamplerIntegrator::Render(const Scene &scene) {
                         1 / std::sqrt((Float)tileSampler->samplesPerPixel));
                     ++nCameraRays;
 
-                    std::unique_ptr<Containers> container = extractor->GetNewContainer(cameraSample.pFilm);
+                    extractorTiles->InitPath(cameraSample.pFilm);
 
                     // Evaluate radiance along camera ray
                     Spectrum L(0.f);
-                    if (rayWeight > 0) L = Li(ray, scene, *tileSampler, arena, *container);
+                    if (rayWeight > 0) L = Li(ray, scene, *tileSampler, arena, *extractorTiles);
 
                     // Issue warning if unexpected radiance value returned
                     if (L.HasNaNs()) {
@@ -326,26 +331,44 @@ void SamplerIntegrator::Render(const Scene &scene) {
                     VLOG(1) << "Camera sample: " << cameraSample << " -> ray: " <<
                         ray << " -> L = " << L;
 
-                    // Registering path with final luminance
-                    Spectrum pathspectrum = L * rayWeight;
-                    container->ReportData(pathspectrum);
 
+/* adaptive convergence control and registration
+// Put this on statistic extractor as implementation of ReportData(pathspectrum)
+                    // computing error and integrator statistics
+                    float sample_luminance = L.y();
+// end ReportData(pathspectrum) on StatExtractor
+// put this as implementation of AddSample for statistic extractor
+                    ++sample_count;
+                    float delta = sample_luminance - mean;
+                    mean += delta / sample_count;
+                    m2_n += delta * (sample_luminance - mean);
+// end AddSample on statistic extractor
+// put this as implementation of AddSample for
+                    IntegratorStatistics stats;
+                    stats.nbsamples=sample_count;
+                    stats.luminance = mean;
+                    stats.variance = m2_n / (sample_count-1);
+                    stats.error = std::sqrt(stats.variance/sample_count);
+                    container->ReportData(stats);
+// End statExtractor
+  */
                     // Add camera ray's contribution to image
                     filmTile->AddSample(cameraSample.pFilm, L, rayWeight);
 
                     // Add extractor contribution to extractor film
-                    extractorTiles->AddSamples(cameraSample.pFilm, std::move(container), rayWeight);
+                    extractorTiles->EndPath(L, rayWeight);
 
                     // Free _MemoryArena_ memory from computing image sample
                     // value
                     arena.Reset();
                 } while (tileSampler->StartNextSample());
+
             }
             LOG(INFO) << "Finished image tile " << tileBounds;
 
             // Merge image tile into _Film_
             camera->film->MergeFilmTile(std::move(filmTile));
-            extractor->MergeTiles(std::move(extractorTiles));
+            extractor->EndTile(std::move(extractorTiles));
             reporter.Update();
         }, nTiles);
         reporter.Done();
@@ -354,12 +377,12 @@ void SamplerIntegrator::Render(const Scene &scene) {
 
     // Save final image after rendering
     camera->film->WriteImage();
-    extractor->WriteOutput();
+    extractor->Flush();
 }
 
 Spectrum SamplerIntegrator::SpecularReflect(
     const RayDifferential &ray, const SurfaceInteraction &isect,
-    const Scene &scene, Sampler &sampler, MemoryArena &arena, Containers &container, int depth) const {
+    const Scene &scene, Sampler &sampler, MemoryArena &arena, Extractor &container, int depth) const {
     // Compute specular reflection direction _wi_ and BSDF value
     Vector3f wo = isect.wo, wi;
     Float pdf;
@@ -397,7 +420,7 @@ Spectrum SamplerIntegrator::SpecularReflect(
 
 Spectrum SamplerIntegrator::SpecularTransmit(
     const RayDifferential &ray, const SurfaceInteraction &isect,
-    const Scene &scene, Sampler &sampler, MemoryArena &arena, Containers &container, int depth) const {
+    const Scene &scene, Sampler &sampler, MemoryArena &arena, Extractor &container, int depth) const {
     Vector3f wo = isect.wo, wi;
     Float pdf;
     const Point3f &p = isect.p;

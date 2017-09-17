@@ -11,7 +11,7 @@
 #include "fileutil.h"
 
 namespace pbrt {
-
+#if 0
 void PathOutputTile::AddSample(const Point2f &pFilm, std::shared_ptr<Container> container) {
   ProfilePhase p(Prof::AddPathSample);
   std::vector<path_entry> entries = container->GetPaths();
@@ -66,4 +66,5 @@ PathOutput *CreatePathOutput(const ParamSet &params) {
 
   return new PathOutput(filename);
 }
+#endif
 }
