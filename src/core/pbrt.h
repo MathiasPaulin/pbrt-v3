@@ -176,6 +176,10 @@ class TextureParams;
 
 // Extractor forward declarations
 class Extractor;
+class ExtractorSet;
+
+/*
+class Extractor;
 class ExtractorFunc;
 class ExtractorManager;
 class ExtractorTile;
@@ -183,7 +187,7 @@ class ExtractorTileManager;
 class Containers;
 class PathSubContainer;
 class Container;
-
+*/
 class PathOutput;
 class PathOutputTile;
 struct PathEntry {

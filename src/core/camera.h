@@ -76,7 +76,7 @@ struct CameraSample {
 };
 
 inline std::ostream &operator<<(std::ostream &os, const CameraSample &cs) {
-    os << "[ pFilm: " << cs.pFilm << " , pLens: " << cs.pLens <<
+    os << "[ sample_pos: " << cs.pFilm << " , pLens: " << cs.pLens <<
         StringPrintf(", time %f ]", cs.time);
     return os;
 }

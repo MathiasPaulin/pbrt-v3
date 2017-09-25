@@ -184,13 +184,11 @@ enum class Prof {
     TexFiltPtex,
     ExtractorInit,
     ExtractorReport,
+    ExtractorWriteOuput,
     PathExtractorRegexTest,
     PathExtractorBuildPath,
-    PathExtractorToPathSample,
     PathWriteOutput,
-    PathFormatOutput,
-    MergePathTile,
-    AddPathSample,
+    PathMergeTile,
     NumProfCategories
 };
 
@@ -248,14 +246,13 @@ static const char *ProfNames[] = {
     "Ptex lookup",
     "Extractor::Init()",
     "Extractor::ReportValue()",
+    "Extractor::Flush()",
     "PathExtractor::isValidPath()",
     "PathExtractor::BuildPath()",
-    "PathExtractor::ToPathSample()",
     "PathOutput::WriteOutput()",
-    "PathEntry::ToString()",
-    "PathOutput::MergePathTile()",
-    "PathOutput::AddSample()",
+    "PathOutput::PathMergeTile()",
 };
+
 
 static_assert((int)Prof::NumProfCategories ==
                   sizeof(ProfNames) / sizeof(ProfNames[0]),

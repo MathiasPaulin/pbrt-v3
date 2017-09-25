@@ -47,7 +47,6 @@
 #include "cameras/orthographic.h"
 #include "cameras/perspective.h"
 #include "cameras/realistic.h"
-#include "extractors/pathextractor.h"
 #include "filters/box.h"
 #include "filters/gaussian.h"
 #include "filters/mitchell.h"
@@ -115,6 +114,8 @@
 #include "textures/wrinkled.h"
 #include "media/grid.h"
 #include "media/homogeneous.h"
+#include "extractors/pathextractor.h"
+
 #include <map>
 #include <stdio.h>
 
@@ -707,21 +708,22 @@ std::shared_ptr<Sampler> MakeSampler(const std::string &name,
 }
 
 Extractor *MakeExtractor(const std::string &ExtractorName,
-                         const ParamSet &ExtractorParams, const Point2i &fullResolution,
-                         Float diagonal, const std::string &imageFilename) {
+                         const ParamSet &ExtractorParams, std::shared_ptr<const Camera> camera) {
     Extractor *extractor = nullptr;
 
     if (ExtractorName == "normal") {
-        extractor = CreateNormalExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+        extractor = CreateNormalExtractor(ExtractorParams, camera);
+    } else if (ExtractorName == "depth") {
+        extractor = CreateDepthExtractor(ExtractorParams, camera);
     }
     else if (ExtractorName == "albedo") {
-        extractor = CreateAlbedoExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
-    }
-    else if (ExtractorName == "depth") {
-        extractor = CreateZExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+        extractor = CreateAlbedoExtractor(ExtractorParams, camera);
     }
     else if (ExtractorName == "path") {
-        extractor = CreatePathExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+        extractor = CreatePathExtractor(ExtractorParams, camera);
+    }
+    else if (ExtractorName == "statistics") {
+        extractor = CreateStatisticsExtractor(ExtractorParams, camera);
     }
     else {
         Error("Extractor \"%s\" unknown", ExtractorName.c_str());
@@ -732,16 +734,20 @@ Extractor *MakeExtractor(const std::string &ExtractorName,
     return extractor;
 }
 
-std::shared_ptr<ExtractorManager> MakeExtractorManager(std::vector<std::pair<std::string, ParamSet>> extractors, const Film &film) {
-    ExtractorManager *extractorManager = new ExtractorManager();
+
+
+//std::shared_ptr<ExtractorManager> MakeExtractorSet(std::vector<std::pair<std::string, ParamSet>> extractors, const Film &film) {
+std::shared_ptr<Extractor> MakeExtractorSet(std::vector<std::pair<std::string, ParamSet>> extractors,
+                                            std::shared_ptr<const Camera> camera) {
+    ExtractorSet *extractorSet = new ExtractorSet();
 
     for(const auto& kv : extractors) {
-        Extractor *extractor = MakeExtractor(kv.first, kv.second, film.fullResolution, film.diagonal, film.filename);
+        Extractor *extractor = MakeExtractor(kv.first, kv.second, camera);
         if(extractor)
-            extractorManager->Add(extractor);
+            extractorSet->AddExtractor(std::move(std::unique_ptr<Extractor>(extractor)));
     }
 
-    return std::shared_ptr<ExtractorManager>(extractorManager);
+    return std::shared_ptr<Extractor>(extractorSet);
 }
 
 
@@ -1432,7 +1438,7 @@ void pbrtWorldEnd() {
     } else {
         std::unique_ptr<Integrator> integrator(renderOptions->MakeIntegrator());
         std::unique_ptr<Scene> scene(renderOptions->MakeScene());
-
+        VLOG(0) << "Scene bounds : " << scene->WorldBound() ;
         // This is kind of ugly; we directly override the current profiler
         // state to switch from parsing/scene construction related stuff to
         // rendering stuff and then switch it back below. The underlying
@@ -1500,7 +1506,7 @@ Integrator *RenderOptions::MakeIntegrator() const {
         return nullptr;
     }
 
-    std::shared_ptr<ExtractorManager> extractor = MakeExtractorManager(extractors, *camera->film);
+    std::shared_ptr<Extractor> extractor = MakeExtractorSet(extractors, camera);
     if (!extractor) {
       Error("Unable to create extractor");
       return nullptr;

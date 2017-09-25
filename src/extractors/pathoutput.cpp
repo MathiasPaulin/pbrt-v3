@@ -12,11 +12,8 @@
 
 namespace pbrt {
 
-void PathOutputTile::AddSample(const Point2f &pFilm, std::shared_ptr<Container> container) {
-  ProfilePhase p(Prof::AddPathSample);
-  std::vector<path_entry> entries = container->GetPaths();
-  VLOG(1) << "PathOutputTile : adding " << entries.size() << " paths.\n";
-  tilepaths.insert(tilepaths.end(), entries.begin(), entries.end());
+void PathOutputTile::AddPath(const Point2f &pFilm, const path_entry &p) {
+  tilepaths.push_back(p);
 }
 
 
@@ -25,8 +22,7 @@ std::unique_ptr<PathOutputTile> PathOutput::GetPathTile() {
 }
 
 void PathOutput::MergePathTile(std::unique_ptr<PathOutputTile> tile) {
-  VLOG(1) << "Merging path tile " << tile->pixelBounds;
-  ProfilePhase _(Prof::MergePathTile);
+  ProfilePhase _(Prof::PathMergeTile);
   std::lock_guard<std::mutex> lock(mutex);
 
   // Path addition during rendering disabled (currently: slowing down rendering in text mode due to formatting)
@@ -34,7 +30,7 @@ void PathOutput::MergePathTile(std::unique_ptr<PathOutputTile> tile) {
 }
 
 void PathOutput::AppendPaths(const std::vector<path_entry> &entries) {
-  ProfilePhase _(Prof::MergePathTile);
+  ProfilePhase _(Prof::PathMergeTile);
   for(const path_entry &entry: entries) {
     if(HasExtension(filename, ".txtdump")) {
       f << "Path:";
@@ -57,13 +53,4 @@ void PathOutput::WriteFile() {
 }
 
 
-PathOutput *CreatePathOutput(const ParamSet &params) {
-  // Intentionally use FindOneString() rather than FindOneFilename() here
-  // so that the rendered image is left in the working directory, rather
-  // than the directory the scene file lives in.
-  std::string filename = params.FindOneString("filename", "");
-  if (filename == "") filename = "pbrt_pathextract.txt";
-
-  return new PathOutput(filename);
-}
 }

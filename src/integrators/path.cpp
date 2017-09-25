@@ -49,7 +49,7 @@ STAT_INT_DISTRIBUTION("Integrator/Path length", pathLength);
 PathIntegrator::PathIntegrator(int maxDepth,
                                std::shared_ptr<const Camera> camera,
                                std::shared_ptr<Sampler> sampler,
-                               std::shared_ptr<ExtractorManager> extractor,
+                               std::shared_ptr<Extractor> extractor,
                                const Bounds2i &pixelBounds, Float rrThreshold,
                                const std::string &lightSampleStrategy)
     : SamplerIntegrator(camera, sampler, extractor, pixelBounds),
@@ -64,7 +64,7 @@ void PathIntegrator::Preprocess(const Scene &scene, Sampler &sampler) {
 
 Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
                             Sampler &sampler, MemoryArena &arena,
-                            Containers &container, int depth) const {
+                            Extractor &extractor, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
     Spectrum L(0.f), beta(1.f);
     RayDifferential ray(r);
@@ -79,8 +79,9 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
     // out of a medium and thus have their beta value increased.
     Float etaScale = 1;
 
+    extractor.AddCameraVertex(ray.o);
+
     for (bounces = 0;; ++bounces) {
-        container.Init(r, bounces, scene);
         // Find next path vertex and accumulate contribution
         VLOG(2) << "Path tracer bounce " << bounces << ", current L = " << L
                 << ", beta = " << beta;
@@ -118,6 +119,7 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
 
         const Distribution1D *distrib = lightDistribution->Lookup(isect.p);
 
+        // TODO, find how to register light-vertex form the generated subpath in the path file
         // Sample illumination from lights to find path contribution.
         // (But skip this for perfectly specular BSDFs.)
         if (isect.bsdf->NumComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) >
@@ -138,10 +140,7 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
         Spectrum f = isect.bsdf->Sample_f(wo, &wi, sampler.Get2D(), &pdf,
                                           BSDF_ALL, &flags);
 
-        // Report intersection to container
-        container.ReportData(isect);
-        // Collect BSDF spectrum, pdf, rev_pdf and type
-        container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+        extractor.AddPathVertex(isect, std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
 
         VLOG(2) << "Sampled BSDF, f = " << f << ", pdf = " << pdf;
         if (f.IsBlack() || pdf == 0.f) break;
@@ -201,7 +200,7 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
 PathIntegrator *CreatePathIntegrator(const ParamSet &params,
                                      std::shared_ptr<Sampler> sampler,
                                      std::shared_ptr<const Camera> camera,
-                                     std::shared_ptr<ExtractorManager> extractor) {
+                                     std::shared_ptr<Extractor> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     int np;
     const int *pb = params.FindInt("pixelbounds", &np);

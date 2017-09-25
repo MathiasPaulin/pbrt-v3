@@ -129,7 +129,7 @@ class BDPTIntegrator : public Integrator {
     // BDPTIntegrator Public Methods
     BDPTIntegrator(std::shared_ptr<Sampler> sampler,
                    std::shared_ptr<const Camera> camera,
-                   std::shared_ptr<ExtractorManager> extractor, int maxDepth,
+                   std::shared_ptr<Extractor> extractor, int maxDepth,
                    bool visualizeStrategies, bool visualizeWeights,
                    const Bounds2i &pixelBounds,
                    const std::string &lightSampleStrategy = "power")
@@ -147,7 +147,7 @@ class BDPTIntegrator : public Integrator {
     // BDPTIntegrator Private Data
     std::shared_ptr<Sampler> sampler;
     std::shared_ptr<const Camera> camera;
-    std::shared_ptr<ExtractorManager> extractor;
+    std::shared_ptr<Extractor> extractor;
     const int maxDepth;
     const bool visualizeStrategies;
     const bool visualizeWeights;
@@ -441,12 +441,12 @@ Spectrum ConnectBDPT(
     const Scene &scene, Vertex *lightVertices, Vertex *cameraVertices, int s,
     int t, const Distribution1D &lightDistr,
     const std::unordered_map<const Light *, size_t> &lightToIndex,
-    const Camera &camera, Sampler &sampler, Point2f *pRaster, Containers &container,
+    const Camera &camera, Sampler &sampler, Point2f *pRaster, Extractor &extractor,
     Float *misWeight = nullptr);
 BDPTIntegrator *CreateBDPTIntegrator(const ParamSet &params,
                                      std::shared_ptr<Sampler> sampler,
                                      std::shared_ptr<const Camera> camera,
-                                     std::shared_ptr<ExtractorManager> extractor);
+                                     std::shared_ptr<Extractor> extractor);
 
 // Vertex Inline Method Definitions
 inline Vertex Vertex::CreateCamera(const Camera *camera, const Ray &ray,

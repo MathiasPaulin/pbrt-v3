@@ -51,7 +51,7 @@ class VolPathIntegrator : public SamplerIntegrator {
     // VolPathIntegrator Public Methods
     VolPathIntegrator(int maxDepth, std::shared_ptr<const Camera> camera,
                       std::shared_ptr<Sampler> sampler,
-                      std::shared_ptr<ExtractorManager> extractor,
+                      std::shared_ptr<Extractor> extractor,
                       const Bounds2i &pixelBounds, Float rrThreshold = 1,
                       const std::string &lightSampleStrategy = "spatial")
         : SamplerIntegrator(camera, sampler, extractor, pixelBounds),
@@ -60,7 +60,7 @@ class VolPathIntegrator : public SamplerIntegrator {
           lightSampleStrategy(lightSampleStrategy) { }
     void Preprocess(const Scene &scene, Sampler &sampler);
     Spectrum Li(const RayDifferential &ray, const Scene &scene,
-                Sampler &sampler, MemoryArena &arena, Containers &container, int depth) const;
+                Sampler &sampler, MemoryArena &arena, Extractor &extractor, int depth) const;
 
   private:
     // VolPathIntegrator Private Data
@@ -73,7 +73,7 @@ class VolPathIntegrator : public SamplerIntegrator {
 VolPathIntegrator *CreateVolPathIntegrator(
     const ParamSet &params, std::shared_ptr<Sampler> sampler,
     std::shared_ptr<const Camera> camera,
-    std::shared_ptr<ExtractorManager> extractor
+    std::shared_ptr<Extractor> extractor
 );
 
 }  // namespace pbrt

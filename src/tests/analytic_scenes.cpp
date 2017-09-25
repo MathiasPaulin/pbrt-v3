@@ -270,7 +270,7 @@ std::vector<TestIntegrator> GetIntegrators() {
 
     Point2i resolution(10, 10);
     AnimatedTransform identity(new Transform, 0, new Transform, 1);
-    std::shared_ptr<ExtractorManager> extractor = std::shared_ptr<ExtractorManager>(new ExtractorManager());
+    std::shared_ptr<Extractor> extractor = std::shared_ptr<Extractor>(new ExtractorSet());
 
     for (auto scene : GetScenes()) {
         // Path tracing integrators

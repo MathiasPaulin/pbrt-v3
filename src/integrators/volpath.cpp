@@ -54,7 +54,7 @@ void VolPathIntegrator::Preprocess(const Scene &scene, Sampler &sampler) {
 
 Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
                                Sampler &sampler, MemoryArena &arena,
-                               Containers &container, int depth) const {
+                               Extractor &extractor, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
     Spectrum L(0.f), beta(1.f);
     RayDifferential ray(r);
@@ -69,8 +69,11 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
     // out of a medium and thus have their beta value increased.
     Float etaScale = 1;
 
+    extractor.AddCameraVertex(r.o);
+
     for (bounces = 0;; ++bounces) {
-      container.Init(ray, bounces, scene);
+
+
         // Intersect _ray_ with scene and store intersection in _isect_
         SurfaceInteraction isect;
         bool foundIntersection = scene.Intersect(ray, &isect);
@@ -97,9 +100,9 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             mi.phase->Sample_p(wo, &wi, sampler.Get2D());
             ray = mi.SpawnRay(wi);
 
-            // FIXME : collect path vertex informations and register them on container.
+            // FIXME : collect path vertex informations and register them on extractor.
             // see below
-            // container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+            //extractor.AddPathVertex(isect, std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
 
         } else {
             ++surfaceInteractions;
@@ -121,8 +124,6 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             // Compute scattering functions and skip over medium boundaries
             isect.ComputeScatteringFunctions(ray, arena, true);
 
-            // Report intersection data to container
-            container.ReportData(isect);
 
             if (!isect.bsdf) {
                 ray = isect.SpawnRay(ray.d);
@@ -143,6 +144,9 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             BxDFType flags;
             Spectrum f = isect.bsdf->Sample_f(wo, &wi, sampler.Get2D(), &pdf,
                                               BSDF_ALL, &flags);
+
+            extractor.AddPathVertex(isect, std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
+
             if (f.IsBlack() || pdf == 0.f) break;
             beta *= f * AbsDot(wi, isect.shading.n) / pdf;
             DCHECK(std::isinf(beta.y()) == false);
@@ -182,10 +186,6 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
                 specularBounce = (flags & BSDF_SPECULAR) != 0;
                 ray = pi.SpawnRay(wi);
             }
-
-            // Collect BSDF spectrum, pdf, rev_pdf and type
-            container.ReportData(std::make_tuple(f, pdf, isect.bsdf->Pdf(wi, wo), flags));
-
         }
 
         // Possibly terminate the path with Russian roulette
@@ -205,7 +205,7 @@ Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
 VolPathIntegrator *CreateVolPathIntegrator(
     const ParamSet &params, std::shared_ptr<Sampler> sampler,
     std::shared_ptr<const Camera> camera,
-    std::shared_ptr<ExtractorManager> extractor) {
+    std::shared_ptr<Extractor> extractor) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
     int np;
     const int *pb = params.FindInt("pixelbounds", &np);
