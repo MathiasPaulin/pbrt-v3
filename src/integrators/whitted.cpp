@@ -43,9 +43,11 @@ namespace pbrt {
 // WhittedIntegrator Method Definitions
 Spectrum WhittedIntegrator::Li(const RayDifferential &ray, const Scene &scene,
                                Sampler &sampler, MemoryArena &arena,
-                               Extractor &container, int depth) const {
+                               Extractor &extractor, int depth) const {
     Spectrum L(0.);
-    container.StartPath(ray, depth, scene);
+    if (depth == 0)
+        extractor.AddCameraVertex(ray.o);
+
     // Find closest ray intersection or return background radiance
     SurfaceInteraction isect;
     if (!scene.Intersect(ray, &isect)) {
@@ -62,10 +64,10 @@ Spectrum WhittedIntegrator::Li(const RayDifferential &ray, const Scene &scene,
     // Compute scattering functions for surface interaction
     isect.ComputeScatteringFunctions(ray, arena);
 
-    // Report intersection data to container
+    // Report intersection data to extractor
 
     if (!isect.bsdf)
-        return Li(isect.SpawnRay(ray.d), scene, sampler, arena, container, depth);
+        return Li(isect.SpawnRay(ray.d), scene, sampler, arena, extractor, depth);
 
     // Compute emitted light if ray hit an area light source
     L += isect.Le(wo);
@@ -82,12 +84,12 @@ Spectrum WhittedIntegrator::Li(const RayDifferential &ray, const Scene &scene,
         if (!f.IsBlack() && visibility.Unoccluded(scene))
             L += f * Li * AbsDot(wi, n) / pdf;
     }
-    container.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
+    extractor.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
 
     if (depth + 1 < maxDepth) {
         // Trace rays for specular reflection and refraction
-        L += SpecularReflect(ray, isect, scene, sampler, arena, container, depth);
-        L += SpecularTransmit(ray, isect, scene, sampler, arena, container, depth);
+        L += SpecularReflect(ray, isect, scene, sampler, arena, extractor, depth);
+        L += SpecularTransmit(ray, isect, scene, sampler, arena, extractor, depth);
     }
     return L;
 }

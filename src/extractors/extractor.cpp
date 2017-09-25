@@ -14,23 +14,22 @@
 
 namespace pbrt {
 
-#ifdef NEW_EXTRACTOR_INTERFACE
-// TODO Verify all profilePhase ....
-// ------------
-// ExtractorSet
-// ------------
-std::unique_ptr<Extractor> ExtractorSet::StartTile(const Bounds2i &tileBound) {
+
+std::unique_ptr<Extractor> ExtractorSet::BeginTile(const Bounds2i &tileBound) const {
+    ProfilePhase p(Prof::ExtractorReport);
     ExtractorSet *tileSet = new ExtractorSet;
     for (const auto &e : extractors)
-        tileSet->AddExtractor(e.second->StartTile(tileBound));
+        tileSet->AddExtractor(std::move(e.second->BeginTile(tileBound)));
     return std::unique_ptr<Extractor>(tileSet);
 }
 
-void ExtractorSet::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) {
-    // TODO merge tile (source in e) in the current extractor set (target)
+void ExtractorSet::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) const {
+    ProfilePhase p(Prof::ExtractorReport);
+    // merge tile (source in e) in the current extractor set (target)
     CHECK( sourceTiledExtractor->Type() == EXTRACTOR_SET );
-    ExtractorSet *source = static_cast<ExtractorSet *>(sourceTiledExtractor.get());
+    auto source = static_cast<ExtractorSet * const>(sourceTiledExtractor.get());
     // merge film extractor tiles
+
     {
         auto targetTiles = extractors.equal_range(FILM_EXTRACTOR);
         auto sourceTiles = source->extractors.equal_range(FILM_EXTRACTOR);
@@ -65,80 +64,97 @@ void ExtractorSet::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) {
 }
 
 // Pixel stuff
-void ExtractorSet::StartPixel(Point2i pixel) {
+void ExtractorSet::BeginPixel(const Point2i &pix) {
+    ProfilePhase p(Prof::ExtractorReport);
     for (const auto &e : extractors)
-        e.second->StartPixel(pixel);
+        e.second->BeginPixel(pix);
 }
 
 void ExtractorSet::EndPixel()  {
+    ProfilePhase p(Prof::ExtractorReport);
     for (const auto &e : extractors)
         e.second->EndPixel();
 }
 
-// Path (or Sample) stuff. May be simplified ?
-void ExtractorSet::InitPath(const Point2f &p)  {
+
+void ExtractorSet::BeginSample(const Point2f &p) {
+    ProfilePhase pp(Prof::ExtractorReport);
     for (const auto &e : extractors)
-        e.second->InitPath(p);
+        e.second->BeginSample(p);
 }
 
-// incremental building of a path, usefull for SamplerIntegrators
-void ExtractorSet::StartPath(const RayDifferential &r, int depth, const Scene &scene) {
+void ExtractorSet::EndSample(const Spectrum &throughput, float weight) {
+    ProfilePhase p(Prof::ExtractorReport);
     for (const auto &e : extractors)
-        e.second->StartPath(r, depth,scene);
+        e.second->EndSample(throughput, weight);
+}
+
+// Path (or Sample) stuff. May be simplified ?
+void ExtractorSet::BeginPath(const Point2f &p)  {
+    ProfilePhase pp(Prof::ExtractorReport);
+    for (const auto &e : extractors)
+        e.second->BeginPath(p);
+}
+
+void ExtractorSet::AddCameraVertex(Point3f o) {
+    ProfilePhase p(Prof::ExtractorReport);
+    for (const auto &e : extractors)
+        e.second->AddCameraVertex(o);
+}
+
+void ExtractorSet::AddLightVertex() {
+    ProfilePhase p(Prof::ExtractorReport);
+    for (const auto &e : extractors)
+        e.second->AddLightVertex();
 }
 
 void ExtractorSet::AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf) {
+    ProfilePhase p(Prof::ExtractorReport);
     for (const auto &e : extractors)
         e.second->AddPathVertex(isect, bsdf);
 }
 
 // direct building of a path, usefull for bidirectionnal integrators
-void ExtractorSet::StartPath(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t) {
+void ExtractorSet::AddPathVertices(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t) {
+    ProfilePhase p(Prof::ExtractorReport);
     for (const auto &e : extractors)
-        e.second->StartPath(lightVertrices, cameraVertrices, s, t);
+        e.second->AddPathVertices(lightVertrices, cameraVertrices, s, t);
 }
 
 void ExtractorSet::EndPath(const Spectrum &throughput, float weight){
+    ProfilePhase p(Prof::ExtractorReport);
     for (const auto &e : extractors)
         e.second->EndPath(throughput, weight);
 }
 
-// General stuff
-// What are the parameters of this ???
 void ExtractorSet::Initialize(const Bounds3f &worldBound) {
+    ProfilePhase p(Prof::ExtractorInit);
     for (const auto &e : extractors)
         e.second->Initialize(worldBound);
 }
 
 void ExtractorSet::Flush(float splatScale) {
+    ProfilePhase p(Prof::ExtractorWriteOuput);
     for (const auto &e : extractors)
         e.second->Flush(splatScale);
 }
 
 
-
-// ---------------------------------------------------------
-// Normal extractor
-// ---------------------------------------------------------
-
-// Extractor interface implementation
-// Tiling stuff
-std::unique_ptr<Extractor> ExtractorNormal::StartTile(const Bounds2i &tileBound) {
+std::unique_ptr<Extractor> ExtractorNormal::BeginTile(const Bounds2i &tileBound) const {
     // generate an ExtractorNormalTile, it and return it
-    return std::unique_ptr<Extractor>(new ExtractorNormalTiled(film.get(),tileBound));
+    return std::unique_ptr<Extractor>(new ExtractorNormalTile(film.get(),tileBound));
 }
 
-void ExtractorNormal::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) {
+void ExtractorNormal::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) const {
     // Verify that e is an ExtractornormalTile and merge it with current film
-    // well, for the moment, we assume it is the case (due to propertiez of multimap)
-    ExtractorNormalTiled *source = static_cast<ExtractorNormalTiled *>(sourceTiledExtractor.get());
+    // well, for the moment, we assume it is the case (due to properties of multimap)
+    ExtractorNormalTile *source = static_cast<ExtractorNormalTile *>(sourceTiledExtractor.get());
     film->MergeFilmTile(source->GetTile());
 }
 
 // General stuff
 // What are the parameters of this ???
 void ExtractorNormal::Initialize(const Bounds3f &worldBound){
-    ProfilePhase pp(Prof::ExtractorInit);
 }
 
 void ExtractorNormal::Flush(float splatScale){
@@ -146,36 +162,40 @@ void ExtractorNormal::Flush(float splatScale){
     film->WriteImage(splatScale);
 }
 
-
-ExtractorNormalTiled::ExtractorNormalTiled(Film *f, const Bounds2i &tileBound) : Extractor(FILM_EXTRACTOR){
-    ProfilePhase pp(Prof::ExtractorInit);
+ExtractorNormalTile::ExtractorNormalTile(Film *f, const Bounds2i &tileBound) : Extractor(FILM_EXTRACTOR){
     film =f->GetFilmTile(tileBound);
 }
 
-
-std::unique_ptr<Extractor> ExtractorNormalTiled::StartTile(const Bounds2i &tileBound) {
-    return std::unique_ptr<Extractor>(this);
+std::unique_ptr<Extractor> ExtractorNormalTile::BeginTile(const Bounds2i &tileBound) const{
+    return std::unique_ptr<Extractor>(nullptr);
 }
 
-void ExtractorNormalTiled::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor){
+void ExtractorNormalTile::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) const {
     // Nothing to do here
 }
 
-
 // Path (or Sample) stuff. May be simplified ?
-void ExtractorNormalTiled::InitPath(const Point2f &p) {
+void ExtractorNormalTile::BeginPath(const Point2f &p) {
     samplePos = p;
     valid_path = false;
     first = true;
 }
-// incremental building of a path, usefull for SamplerIntegrators
-void ExtractorNormalTiled::StartPath(const RayDifferential &r, int depth, const Scene &scene){
-    first = (depth==0);
-    valid_path = !first;
+
+void ExtractorNormalTile::AddCameraVertex(Point3f o) {
+    first = true;
+    valid_path = false;
 }
 
-void ExtractorNormalTiled::StartPath(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t) {
-    // TODO : if t==1 BDPT use addSplat on the entire film. find a way to manage extractors for bdpt ...
+void ExtractorNormalTile::AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf) {
+    if (first) {
+        n = Faceforward(isect.n, isect.wo);
+        first = false;
+        valid_path = true;
+    }
+}
+
+void ExtractorNormalTile::AddPathVertices(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t) {
+    // if t==1 BDPT use addSplat on the entire film. find a way to manage normal extractors for bdpt ...
     valid_path = (t > 1);
     if (valid_path) {
         const Vertex &firstHit = cameraVertrices[1];
@@ -187,16 +207,7 @@ void ExtractorNormalTiled::StartPath(const Vertex *lightVertrices, const Vertex 
     }
 }
 
-void ExtractorNormalTiled::AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf) {
-    ProfilePhase p(Prof::ExtractorReport);
-    if (first) {
-        n = Faceforward(isect.n, isect.wo);
-        first = false;
-        valid_path = true;
-    }
-}
-
-void ExtractorNormalTiled::EndPath(const Spectrum &throughput, float weight) {
+void ExtractorNormalTile::EndPath(const Spectrum &throughput, float weight) {
     (void) throughput;
     (void) weight;
     if (valid_path) {
@@ -208,10 +219,9 @@ void ExtractorNormalTiled::EndPath(const Spectrum &throughput, float weight) {
 
 // General stuff
 // What are the parameters of this ???
-void ExtractorNormalTiled::Initialize(const Bounds3f & worldBound) {
-    ProfilePhase pp(Prof::ExtractorInit);
+void ExtractorNormalTile::Initialize(const Bounds3f & worldBound) {
 }
-void ExtractorNormalTiled::Flush(float splatScale) {
+void ExtractorNormalTile::Flush(float splatScale) {
     (void)splatScale;
 }
 
@@ -228,37 +238,25 @@ Extractor *CreateNormalExtractor(const ParamSet &params, std::shared_ptr<const C
             camera->film->diagonal, filename , 1.f) );
 }
 
-// ---------------------------------------------------------
-// Depth extractor
-// TODO : generalize depth extractor for each kind of Camera
-// ---------------------------------------------------------
-
 ExtractorDepth::ExtractorDepth(Film *f, float zn, float zf) : Extractor(FILM_EXTRACTOR), film(f), znear(zn), zfar(zf) {
 
 }
 
-ExtractorDepth::~ExtractorDepth() {
-
-}
-
-// Extractor interface implementation
-// Tiling stuff
-std::unique_ptr<Extractor> ExtractorDepth::StartTile(const Bounds2i &tileBound) {
+std::unique_ptr<Extractor> ExtractorDepth::BeginTile(const Bounds2i &tileBound) const {
     // generate an ExtractorNormalTile, it and return it
-    return std::unique_ptr<Extractor>(new ExtractorDepthTiled(film.get(),tileBound, znear, zfar));
+    return std::unique_ptr<Extractor>(new ExtractorDepthTile(film.get(),tileBound, znear, zfar));
 }
 
-void ExtractorDepth::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) {
+void ExtractorDepth::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) const {
     // Verify that e is an ExtractornormalTile and merge it with current film
     // well, for the moment, we assume it is the case (due to propertiez of multimap)
-    ExtractorDepthTiled *source = static_cast<ExtractorDepthTiled *>(sourceTiledExtractor.get());
+    ExtractorDepthTile *source = static_cast<ExtractorDepthTile *>(sourceTiledExtractor.get());
     film->MergeFilmTile(source->GetTile());
 }
 
 // General stuff
 // What are the parameters of this ???
 void ExtractorDepth::Initialize(const Bounds3f & worldBound){
-    ProfilePhase pp(Prof::ExtractorInit);
 }
 
 void ExtractorDepth::Flush(float splatScale){
@@ -268,38 +266,34 @@ void ExtractorDepth::Flush(float splatScale){
 
 
 
-ExtractorDepthTiled::ExtractorDepthTiled(Film *f, const Bounds2i &tileBound, float zn, float zf) :
+ExtractorDepthTile::ExtractorDepthTile(Film *f, const Bounds2i &tileBound, float zn, float zf) :
         Extractor(FILM_EXTRACTOR),
         znear(zn), zfar(zf),
         realdepth(0.f) {
-    ProfilePhase pp(Prof::ExtractorInit);
     film =f->GetFilmTile(tileBound);
-    //zscale = ((zfar == znear) ? 1.f : znear / (znear - zfar));
     zscale = ( (zfar <= znear) ? 1.f : (zfar / (zfar - znear)) );
 }
 
-std::unique_ptr<Extractor> ExtractorDepthTiled::StartTile(const Bounds2i &tileBound) {
-    return std::unique_ptr<Extractor>(this);
+std::unique_ptr<Extractor> ExtractorDepthTile::BeginTile(const Bounds2i &tileBound) const{
+    return std::unique_ptr<Extractor>(nullptr);
 }
 
-void ExtractorDepthTiled::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor){
+void ExtractorDepthTile::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) const {
     // Nothing to do here
 }
 
-void ExtractorDepthTiled::InitPath(const Point2f &p) {
+void ExtractorDepthTile::BeginPath(const Point2f &p) {
     samplePos = p;
     valid_path = false;
 }
 
-float ExtractorDepthTiled::ConvertDepth(float z){
-    //float d = zfar == 0.f ? znear / z : (-zfar * zscale) * (1.f / z) + zscale;
-    float d = ( (z <= znear) ? 0.f : zscale * (1.0f - znear/z) );
-    return d;
+void ExtractorDepthTile::AddCameraVertex(Point3f o) {
+    first = true;
+    rayorigin = o;
+    valid_path = false;
 }
 
-void ExtractorDepthTiled::AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf) {
-    ProfilePhase p(Prof::ExtractorReport);
-    // TODO: compute z in screen space
+void ExtractorDepthTile::AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf) {
     if ( first ) {
         float z = Vector3f(isect.p - rayorigin).Length();
         realdepth = ConvertDepth(z);
@@ -308,14 +302,7 @@ void ExtractorDepthTiled::AddPathVertex(const SurfaceInteraction &isect, const s
     }
 }
 
-void ExtractorDepthTiled::StartPath(const RayDifferential &r, int depth, const Scene &scene){
-    first = (depth==0);
-    valid_path = !first;
-    if (first)
-        rayorigin = r.o;
-}
-
-void ExtractorDepthTiled::StartPath(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t){
+void ExtractorDepthTile::AddPathVertices(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t){
     valid_path = (t>1);
     if (valid_path) {
         const Vertex &pathOrigin = cameraVertrices[0];
@@ -330,7 +317,7 @@ void ExtractorDepthTiled::StartPath(const Vertex *lightVertrices, const Vertex *
     }
 }
 
-void ExtractorDepthTiled::EndPath(const Spectrum &throughput, float weight){
+void ExtractorDepthTile::EndPath(const Spectrum &throughput, float weight){
     (void)throughput;
     (void)weight;
     if (valid_path) {
@@ -339,13 +326,13 @@ void ExtractorDepthTiled::EndPath(const Spectrum &throughput, float weight){
     }
 }
 
-void ExtractorDepthTiled::Initialize(const Bounds3f &worldBound) {
-    ProfilePhase pp(Prof::ExtractorInit);
+void ExtractorDepthTile::Initialize(const Bounds3f &worldBound) {
 }
 
-void ExtractorDepthTiled::Flush(float splatScale) {
+void ExtractorDepthTile::Flush(float splatScale) {
     (void)splatScale;
 }
+
 
 Extractor *CreateDepthExtractor(const ParamSet &params, std::shared_ptr<const Camera> camera) {
     std::string filename = params.FindOneString("outputfile", "");
@@ -363,9 +350,6 @@ Extractor *CreateDepthExtractor(const ParamSet &params, std::shared_ptr<const Ca
 }
 
 
-// ---------------------------------------------------------
-// Albedo extractor
-// ---------------------------------------------------------
 
 ExtractorAlbedo::ExtractorAlbedo(Film *f, BxDFType bxdfType, bool integrateAlbedo, int nbSamples) :
         Extractor(FILM_EXTRACTOR), film(f),
@@ -374,28 +358,19 @@ ExtractorAlbedo::ExtractorAlbedo(Film *f, BxDFType bxdfType, bool integrateAlbed
 
 }
 
-ExtractorAlbedo::~ExtractorAlbedo() {
-
-}
-
-// Extractor interface implementation
-// Tiling stuff
-std::unique_ptr<Extractor> ExtractorAlbedo::StartTile(const Bounds2i &tileBound) {
+std::unique_ptr<Extractor> ExtractorAlbedo::BeginTile(const Bounds2i &tileBound) const {
     // generate an ExtractorNormalTile, it and return it
-    return std::unique_ptr<Extractor>(new ExtractorAlbedoTiled(film.get(),tileBound, bxdf_type, integrate_albedo, nb_samples));
+    return std::unique_ptr<Extractor>(new ExtractorAlbedoTile(film.get(),tileBound, bxdf_type, integrate_albedo, nb_samples));
 }
 
-void ExtractorAlbedo::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) {
+void ExtractorAlbedo::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) const {
     // Verify that e is an ExtractornormalTile and merge it with current film
     // well, for the moment, we assume it is the case (due to propertiez of multimap)
-    ExtractorAlbedoTiled *source = static_cast<ExtractorAlbedoTiled *>(sourceTiledExtractor.get());
+    ExtractorAlbedoTile *source = static_cast<ExtractorAlbedoTile *>(sourceTiledExtractor.get());
     film->MergeFilmTile(source->GetTile());
 }
 
-// General stuff
-// What are the parameters of this ???
 void ExtractorAlbedo::Initialize(const Bounds3f &worldBound){
-    ProfilePhase pp(Prof::ExtractorInit);
 }
 
 void ExtractorAlbedo::Flush(float splatScale){
@@ -403,22 +378,13 @@ void ExtractorAlbedo::Flush(float splatScale){
     film->WriteImage(splatScale);
 }
 
-
-
-
-
-ExtractorAlbedoTiled::ExtractorAlbedoTiled(Film *f, const Bounds2i &tileBound, BxDFType bxdfType, bool integrateAlbedo, int nbSamples) :
+ExtractorAlbedoTile::ExtractorAlbedoTile(Film *f, const Bounds2i &tileBound, BxDFType bxdfType, bool integrateAlbedo, int nbSamples) :
         Extractor(FILM_EXTRACTOR),
         bxdf_type(bxdfType), integrate_albedo(integrateAlbedo), nb_samples(nbSamples)
 {
-    ProfilePhase pp(Prof::ExtractorInit);
-
     film =f->GetFilmTile(tileBound);
     if (integrate_albedo) {
-        // Static Random Number Generator; same instance across containers
-        //static
         RNG rng(0);
-
         // Generate sample points for albedo calculation
         for (int i = 0; i < nb_samples; ++i) {
             Float x = rng.UniformFloat();
@@ -429,34 +395,32 @@ ExtractorAlbedoTiled::ExtractorAlbedoTiled(Film *f, const Bounds2i &tileBound, B
     }
 }
 
-std::unique_ptr<Extractor> ExtractorAlbedoTiled::StartTile(const Bounds2i &tileBound) {
-    return std::unique_ptr<Extractor>(this);
+std::unique_ptr<Extractor> ExtractorAlbedoTile::BeginTile(const Bounds2i &tileBound) const {
+    return std::unique_ptr<Extractor>(nullptr);
 }
 
-void ExtractorAlbedoTiled::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor){
+void ExtractorAlbedoTile::EndTile(std::unique_ptr<Extractor> sourceTiledExtractor) const {
     // Nothing to do here
 }
 
-void ExtractorAlbedoTiled::InitPath(const Point2f &p) {
+void ExtractorAlbedoTile::BeginPath(const Point2f &p) {
     samplePos = p;
     valid_path = false;
 }
 
-void ExtractorAlbedoTiled::StartPath(const RayDifferential &r, int depth, const Scene &scene){
-    first = (depth==0);
-    valid_path = !first;
+void ExtractorAlbedoTile::AddCameraVertex(Point3f o) {
+    first = true;
+    valid_path = false;
 }
 
-
-Spectrum ExtractorAlbedoTiled::computeAlbedo(BSDF *bsdf, const Vector3f &dir){
+Spectrum ExtractorAlbedoTile::computeAlbedo(BSDF *bsdf, const Vector3f &dir){
     Point2f dummy;
     return integrate_albedo ?
               bsdf->rho(nb_samples, wi.data(), wo.data(), bxdf_type) :
               bsdf->rho(dir, 0, &dummy, BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE));
 }
 
-void ExtractorAlbedoTiled::AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf) {
-    ProfilePhase p(Prof::ExtractorReport);
+void ExtractorAlbedoTile::AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf) {
     if ( first ) {
         if (isect.bsdf) {
             rho = computeAlbedo(isect.bsdf, isect.wo);
@@ -466,7 +430,7 @@ void ExtractorAlbedoTiled::AddPathVertex(const SurfaceInteraction &isect, const 
     }
 }
 
-void ExtractorAlbedoTiled::StartPath(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t){
+void ExtractorAlbedoTile::AddPathVertices(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t){
     (void)lightVertrices;
     (void)s;
     valid_path = (t>1);
@@ -480,7 +444,7 @@ void ExtractorAlbedoTiled::StartPath(const Vertex *lightVertrices, const Vertex 
     }
 }
 
-void ExtractorAlbedoTiled::EndPath(const Spectrum &throughput, float weight){
+void ExtractorAlbedoTile::EndPath(const Spectrum &throughput, float weight){
     (void)throughput;
 
     if (valid_path)
@@ -488,14 +452,12 @@ void ExtractorAlbedoTiled::EndPath(const Spectrum &throughput, float weight){
     valid_path = false;
 }
 
-void ExtractorAlbedoTiled::Initialize(const Bounds3f &worldBound) {
-    ProfilePhase pp(Prof::ExtractorInit);
+void ExtractorAlbedoTile::Initialize(const Bounds3f &worldBound) {
 }
 
-void ExtractorAlbedoTiled::Flush(float splatScale) {
+void ExtractorAlbedoTile::Flush(float splatScale) {
     (void)splatScale;
 }
-
 
 Extractor *CreateAlbedoExtractor(const ParamSet &params, std::shared_ptr<const Camera> camera) {
     std::string filename = params.FindOneString("outputfile", "");
@@ -523,102 +485,5 @@ Extractor *CreateAlbedoExtractor(const ParamSet &params, std::shared_ptr<const C
             std::unique_ptr<Filter>(CreateBoxFilter(ParamSet())),
             camera->film->diagonal, filename, 1.f), type, integrateAlbedo, nbSamples);
 }
-#else
-
-void StatisticsContainer::Init(const RayDifferential &r, int depth, const Scene &scene) {
-    (void)depth;
-    statistics.luminance = 0.;
-    statistics.variance = 0.;
-    statistics.error = 0.;
-    statistics.nbsamples = 0;
-
-}
-
-void StatisticsContainer::ReportData(const IntegratorStatistics &stats) {
-    statistics = stats;
-}
-
-Spectrum StatisticsContainer::ToSample() const {
-    return Spectrum(statistics.variance);
-}
-
-
-std::shared_ptr<Container> StatisticsExtractor::GetNewContainer(const Point2f &p) const {
-    return std::shared_ptr<Container>(new StatisticsContainer(p));
-}
-
-
-Extractor *CreateStatisticsExtractor(const ParamSet &params, const Point2i &fullResolution,
-                                     Float diagonal, const std::string &imageFilename) {
-    std::string filename = params.FindOneString("outputfile", "");
-    if (filename == "") filename = "error_" + imageFilename;
-
-    return new Extractor(new StatisticsExtractor(), new Film(
-            fullResolution,
-            Bounds2f(Point2f(0, 0), Point2f(1, 1)),
-            std::unique_ptr<Filter>(CreateBoxFilter(ParamSet())),
-            diagonal, filename, 1.f));
-}
-
-
-std::unique_ptr<Containers> ExtractorManager::GetNewContainer(const Point2f &p) {
-    Containers *container = new Containers();
-    for (Extractor *ext : extractors) {
-        container->Add(ext->f->GetNewContainer(p));
-    }
-
-    return std::unique_ptr<Containers>(container);
-}
-
-std::unique_ptr<ExtractorTileManager> ExtractorManager::GetNewExtractorTile(const Bounds2i &tileBounds) {
-    ExtractorTileManager *exttile = new ExtractorTileManager();
-    for (uint i = 0; i < extractors.size(); ++i) {
-        if (dispatchtable[i].first)
-            exttile->Add(std::move(paths[dispatchtable[i].second]->GetPathTile()));
-        else
-            exttile->Add(std::move(films[dispatchtable[i].second]->GetFilmTile(tileBounds)));
-    }
-
-    return std::unique_ptr<ExtractorTileManager>(exttile);
-}
-
-void ExtractorManager::MergeTiles(std::unique_ptr<ExtractorTileManager> tiles) {
-    for (uint i = 0; i < extractors.size(); ++i) {
-        if (dispatchtable[i].first)
-            paths[dispatchtable[i].second]->MergePathTile(std::move(tiles->GetPathTile(i)));
-        else
-            films[dispatchtable[i].second]->MergeFilmTile(std::move(tiles->GetFilmTile(i)));
-    }
-}
-
-void ExtractorManager::WriteOutput(Float splatScale) {
-    // TODO: Generic output
-    for (uint i = 0; i < extractors.size(); ++i) {
-        if (dispatchtable[i].first)
-            paths[dispatchtable[i].second]->WriteFile();
-        else
-            films[dispatchtable[i].second]->WriteImage(splatScale);
-    }
-}
-
-void ExtractorManager::AddSplats(const Point2f &pSplat, const Containers &containers) {
-    for (uint i = 0; i < extractors.size(); ++i) {
-        if (!dispatchtable[i].first)
-            containers.AddSplats(i, pSplat, films[dispatchtable[i].second]);
-    }
-}
-
-void ExtractorTileManager::AddSamples(const Point2f &pFilm,
-                                      std::unique_ptr<Containers> containers, Float sampleWeight) {
-    for (uint i = 0; i < dispatchtable.size(); ++i) {
-        if (dispatchtable[i].first)
-            pathtiles[dispatchtable[i].second]->AddSample(pFilm, containers->GetContainer(i));
-        else
-            filmtiles[dispatchtable[i].second]->AddSample(pFilm, containers->ToSample(i), sampleWeight);
-    }
-}
-
-
-#endif
 
 }

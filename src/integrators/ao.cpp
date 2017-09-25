@@ -57,12 +57,14 @@ AOIntegrator::AOIntegrator(bool cosSample, int ns,
 
 Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
                           Sampler &sampler, MemoryArena &arena,
-                          Extractor &container,
+                          Extractor &extractor,
                           int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
     Spectrum L(0.f);
     RayDifferential ray(r);
-    container.StartPath(ray, depth, scene);
+
+    // Is that have a meaning ?
+    extractor.AddCameraVertex(ray.o);
 
     // Intersect _ray_ with scene and store intersection in _isect_
     SurfaceInteraction isect;
@@ -75,7 +77,7 @@ Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
             goto retry;
         }
         // Report intersection data FIXME: Is it the right way to do this ?
-        // container.ReportData(isect);
+        // extractor.ReportData(isect);
         // Compute coordinate frame based on true geometry, not shading
         // geometry.
         Normal3f n = Faceforward(isect.n, -ray.d);
@@ -102,7 +104,8 @@ Spectrum AOIntegrator::Li(const RayDifferential &r, const Scene &scene,
             if (!scene.IntersectP(isect.SpawnRay(wi)))
                 L += Dot(wi, n) / (pdf * nSamples);
         }
-        container.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
+        // Is that have a meaning ?
+        extractor.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
     }
     return L;
 }

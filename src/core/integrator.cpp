@@ -263,9 +263,8 @@ void SamplerIntegrator::Render(const Scene &scene) {
             std::unique_ptr<FilmTile> filmTile =
                 camera->film->GetFilmTile(tileBounds);
 
-            // Get _FilmTile_ for extractors
-            std::unique_ptr<Extractor> extractorTiles =
-                    extractor->StartTile(tileBounds);
+            // Get tiles for extractors
+            std::unique_ptr<Extractor> extractorTile = extractor->BeginTile(tileBounds);
 
             // Loop over pixels in tile to render them
             for (Point2i pixel : tileBounds) {
@@ -274,16 +273,14 @@ void SamplerIntegrator::Render(const Scene &scene) {
                     tileSampler->StartPixel(pixel);
                 }
 
-                // Do this check after the StartPixel() call; this keeps
+                // Do this check after the BeginPixel() call; this keeps
                 // the usage of RNG values from (most) Samplers that use
                 // RNGs consistent, which improves reproducability /
                 // debugging.
                 if (!InsideExclusive(pixel, pixelBounds))
                     continue;
 
-                // initialize current pixel statistics
-                float mean = 0, m2_n = 0.0f;
-                int  sample_count = 0;
+                extractorTile->BeginPixel(pixel);
 
                 do {
 
@@ -299,11 +296,14 @@ void SamplerIntegrator::Render(const Scene &scene) {
                         1 / std::sqrt((Float)tileSampler->samplesPerPixel));
                     ++nCameraRays;
 
-                    extractorTiles->InitPath(cameraSample.pFilm);
+                    // begin sample
+                    extractorTile->BeginSample(cameraSample.pFilm);
 
                     // Evaluate radiance along camera ray
                     Spectrum L(0.f);
-                    if (rayWeight > 0) L = Li(ray, scene, *tileSampler, arena, *extractorTiles);
+
+                    extractorTile->BeginPath(cameraSample.pFilm);
+                    if (rayWeight > 0) L = Li(ray, scene, *tileSampler, arena, *extractorTile);
 
                     // Issue warning if unexpected radiance value returned
                     if (L.HasNaNs()) {
@@ -330,45 +330,25 @@ void SamplerIntegrator::Render(const Scene &scene) {
                     }
                     VLOG(1) << "Camera sample: " << cameraSample << " -> ray: " <<
                         ray << " -> L = " << L;
-
-
-/* adaptive convergence control and registration
-// Put this on statistic extractor as implementation of ReportData(pathspectrum)
-                    // computing error and integrator statistics
-                    float sample_luminance = L.y();
-// end ReportData(pathspectrum) on StatExtractor
-// put this as implementation of AddSample for statistic extractor
-                    ++sample_count;
-                    float delta = sample_luminance - mean;
-                    mean += delta / sample_count;
-                    m2_n += delta * (sample_luminance - mean);
-// end AddSample on statistic extractor
-// put this as implementation of AddSample for
-                    IntegratorStatistics stats;
-                    stats.nbsamples=sample_count;
-                    stats.luminance = mean;
-                    stats.variance = m2_n / (sample_count-1);
-                    stats.error = std::sqrt(stats.variance/sample_count);
-                    container->ReportData(stats);
-// End statExtractor
-  */
+                    extractorTile->EndPath(L, rayWeight);
+                    extractorTile->EndSample(L, rayWeight);
                     // Add camera ray's contribution to image
                     filmTile->AddSample(cameraSample.pFilm, L, rayWeight);
-
-                    // Add extractor contribution to extractor film
-                    extractorTiles->EndPath(L, rayWeight);
 
                     // Free _MemoryArena_ memory from computing image sample
                     // value
                     arena.Reset();
                 } while (tileSampler->StartNextSample());
 
+                extractorTile->EndPixel();
             }
+            extractor->EndTile(std::move(extractorTile));
+
             LOG(INFO) << "Finished image tile " << tileBounds;
 
             // Merge image tile into _Film_
             camera->film->MergeFilmTile(std::move(filmTile));
-            extractor->EndTile(std::move(extractorTiles));
+
             reporter.Update();
         }, nTiles);
         reporter.Done();

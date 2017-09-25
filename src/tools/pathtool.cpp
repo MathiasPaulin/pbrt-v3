@@ -434,20 +434,22 @@ void path_to_img(int argc, char *argv[]) {
     PathFile paths(argv[2]);
     std::string outputfile(argv[3]);
 
-    pbrt::Film *film = new pbrt::Film(pbrt::Point2i(1024, 1024),
+    pbrt::Film *film = new pbrt::Film(pbrt::Point2i(256, 256),
                                       pbrt::Bounds2f(pbrt::Point2f(0, 0), pbrt::Point2f(1, 1)),
                                       std::unique_ptr<pbrt::Filter>(new pbrt::BoxFilter(pbrt::Vector2f(1.f, 1.f))),
                                       35.f, outputfile, 1.f);
 
     std::unique_ptr<pbrt::FilmTile> tile(
-            film->GetFilmTile(pbrt::Bounds2i(pbrt::Point2i(0, 0), pbrt::Point2i(1024, 1024))));
+            film->GetFilmTile(pbrt::Bounds2i(pbrt::Point2i(0, 0), pbrt::Point2i(256, 256))));
     for (const pbrt::path_entry &p : paths) {
         // ?
         if (p.pathlen == 0) continue;
         pbrt::Point2f samplepoint(p.pFilm[0], p.pFilm[1]);
         pbrt::Spectrum bsdf = pbrt::Spectrum::FromRGB(&p.L[0]);
         //std::cerr << "Adding path " << samplepoint << "with bsdf = " << bsdf << std::endl;
-        tile->AddSample(samplepoint, bsdf);
+        if (!bsdf.IsBlack())
+            //tile->AddSample(samplepoint, bsdf);
+            film->AddSplat(samplepoint, bsdf*1.f/16.f);
     }
 
     std::cerr << "Merging path tile" << std::endl;

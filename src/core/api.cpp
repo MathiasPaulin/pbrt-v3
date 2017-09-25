@@ -719,14 +719,12 @@ Extractor *MakeExtractor(const std::string &ExtractorName,
     else if (ExtractorName == "albedo") {
         extractor = CreateAlbedoExtractor(ExtractorParams, camera);
     }
-    /*
     else if (ExtractorName == "path") {
-        extractor = CreatePathExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+        extractor = CreatePathExtractor(ExtractorParams, camera);
     }
     else if (ExtractorName == "statistics") {
-        extractor = CreateStatisticsExtractor(ExtractorParams, fullResolution, diagonal, imageFilename);
+        extractor = CreateStatisticsExtractor(ExtractorParams, camera);
     }
-    */
     else {
         Error("Extractor \"%s\" unknown", ExtractorName.c_str());
         return nullptr;
@@ -738,31 +736,20 @@ Extractor *MakeExtractor(const std::string &ExtractorName,
 
 
 
-//std::shared_ptr<ExtractorManager> MakeExtractorManager(std::vector<std::pair<std::string, ParamSet>> extractors, const Film &film) {
-std::shared_ptr<Extractor> MakeExtractorManager(std::vector<std::pair<std::string, ParamSet>> extractors, std::shared_ptr<const Camera> camera) {
-    ExtractorSet *extractorManager = new ExtractorSet();
+//std::shared_ptr<ExtractorManager> MakeExtractorSet(std::vector<std::pair<std::string, ParamSet>> extractors, const Film &film) {
+std::shared_ptr<Extractor> MakeExtractorSet(std::vector<std::pair<std::string, ParamSet>> extractors,
+                                            std::shared_ptr<const Camera> camera) {
+    ExtractorSet *extractorSet = new ExtractorSet();
 
     for(const auto& kv : extractors) {
         Extractor *extractor = MakeExtractor(kv.first, kv.second, camera);
         if(extractor)
-            extractorManager->AddExtractor(std::move(std::unique_ptr<Extractor>(extractor)));
+            extractorSet->AddExtractor(std::move(std::unique_ptr<Extractor>(extractor)));
     }
 
-    return std::shared_ptr<Extractor>(extractorManager);
+    return std::shared_ptr<Extractor>(extractorSet);
 }
-/*
-std::shared_ptr<ExtractorManager> MakeExtractorManager(std::vector<std::pair<std::string, ParamSet>> extractors, const Film &film) {
-    ExtractorManager *extractorManager = new ExtractorManager();
 
-    for(const auto& kv : extractors) {
-        Extractor *extractor = MakeExtractor(kv.first, kv.second, film.fullResolution, film.diagonal, film.filename);
-        if(extractor)
-            extractorManager->Add(extractor);
-    }
-
-    return std::shared_ptr<ExtractorManager>(extractorManager);
-}
-*/
 
 std::unique_ptr<Filter> MakeFilter(const std::string &name,
                                    const ParamSet &paramSet) {
@@ -1519,7 +1506,7 @@ Integrator *RenderOptions::MakeIntegrator() const {
         return nullptr;
     }
 
-    std::shared_ptr<Extractor> extractor = MakeExtractorManager(extractors, camera);
+    std::shared_ptr<Extractor> extractor = MakeExtractorSet(extractors, camera);
     if (!extractor) {
       Error("Unable to create extractor");
       return nullptr;

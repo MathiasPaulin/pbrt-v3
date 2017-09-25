@@ -160,7 +160,7 @@ Spectrum MLTIntegrator::L(const Scene &scene, MemoryArena &arena,
     sampler.StartStream(connectionStreamIndex);
 
     // Get a new container for reporting
-    extractor->InitPath(*pRaster);
+    extractor->BeginPath(*pRaster);
 
     return ConnectBDPT(scene, lightVertices, cameraVertices, s, t, *lightDistr,
                        lightToIndex, *camera, sampler, pRaster, *extractor) *

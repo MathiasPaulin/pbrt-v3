@@ -15,7 +15,7 @@
 
 namespace pbrt {
 
-#if 0
+
 class PathOutput {
 public:
     PathOutput(const std::string &filename) : filename(filename), f(filename, std::ios::binary), npaths(0) {
@@ -42,7 +42,7 @@ private:
 
 class PathOutputTile {
 public:
-    void AddSample(const Point2f &pFilm, std::shared_ptr<Container> container);
+    void AddPath(const Point2f &pFilm, const path_entry &p);
 
 private:
     MemoryArena arena; // Path storage arena
@@ -54,7 +54,7 @@ private:
 };
 
 PathOutput *CreatePathOutput(const ParamSet &params);
-#endif
+
 
 } // namespace pbrt
 

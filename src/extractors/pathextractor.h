@@ -11,7 +11,7 @@
 #include "extractors/pathio.h"
 
 namespace pbrt {
-#if 0
+
     enum class VertexInteraction {
         Camera, Light, Diffuse, Specular, Undef
     };
@@ -117,69 +117,111 @@ namespace pbrt {
 
     };
 
-    class PathExtractorContainer : public Container {
-    public:
-        PathExtractorContainer(const Point2f &pFilm, const std::regex &r, const std::string &regexpr) :
-                pFilm(pFilm),
-                regex(r),
-                regexpr(regexpr),
-                s_state(0),
-                t_state(0) {};
 
-        void Init(const RayDifferential &r, int depth, const Scene &Scene);
+class ExtractorPath : public Extractor {
+public:
+    ExtractorPath(const std::string &pathExpression, std::unique_ptr<Film> f, std::unique_ptr<PathOutput> p) :
+            Extractor(PATH_EXTRACTOR), regex(std::regex(pathExpression, std::regex::optimize)), regexpr(pathExpression), film(std::move(f)), path_file(std::move(p))
+            {}
 
-        void ReportData(const SurfaceInteraction &isect);
+    ~ExtractorPath() {}
 
-        void ReportData(const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf);
+    // Tiling stuff
+    std::unique_ptr<Extractor> BeginTile(const Bounds2i &tileBound) const;
+    // End tile get a tiledExtractor as parameter and merge it with the current full extractor.
+    // Tiled extractors might use this method with a null parameter to finalize the tile
+    void EndTile(std::unique_ptr<Extractor> sourceTiledExtractor = nullptr) const;
 
-        void ReportData(const Spectrum &L);
-
-        Spectrum ToSample() const;
-
-        std::vector<path_entry> GetPaths();
-
-        void AddSplat(const Point2f &pSplat, Film *film);
-
-        // TODO: If possible, check path regex before adding vertices to the container
-        void BuildPath(const Vertex *lightVertices, const Vertex *cameraVertices, int s, int t);
-
-    private:
-        MemoryArena arena;
-        const Point2f pFilm;
-        const std::string regexpr;
-        const std::regex regex;
-        bool path_integrator = false;
-        Interaction i; // Temporary storage for interaction collection
-        // path state
-        int s_state, t_state;
-        Path current_path;
-        std::map<std::pair<int, int>, Path> paths;
-    };
+    // General stuff
+    // What are the parameters of this ???
+    void Initialize(const Bounds3f & worldBound);
+    void Flush(float splatScale = 1.f);
 
 
-    class PathExtractor : public ExtractorFunc {
-    public:
-        PathExtractor(const std::string &pathExpression) :
-                r(std::regex(pathExpression, std::regex::optimize)), expr(pathExpression) {};
+private:
 
-        std::shared_ptr<Container> GetNewContainer(const Point2f &p) const {
-            return std::shared_ptr<Container>(new PathExtractorContainer(p, r, expr));
-        }
+    const std::regex regex;
+    const std::string regexpr;
 
-        std::unique_ptr<PathExtractorContainer> GetNewPathExtractorContainer(const Point2f &p) const {
-            return std::unique_ptr<PathExtractorContainer>(new PathExtractorContainer(p, r, expr));
-        }
-
-        ExtractorType GetType() const { return ExtractorType::PATH_EXTRACTOR; }
-    private:
-        const std::regex r;
-        const std::string expr;
-    };
+    std::unique_ptr<Film> film;
+    std::unique_ptr<PathOutput> path_file;
+};
 
 
-    Extractor *CreatePathExtractor(const ParamSet &params, const Point2i &fullResolution,
-                                   const Float diagonal, const std::string &imageFilename);
-#endif
+class ExtractorPathTile : public Extractor {
+public:
+    ExtractorPathTile(Film *f, PathOutput *p, const Bounds2i &tileBound, const std::regex &reg, const std::string &exp);
+
+    ~ExtractorPathTile() {}
+
+    // Tiling stuff
+    std::unique_ptr<Extractor> BeginTile(const Bounds2i &tileBound) const;
+    void EndTile(std::unique_ptr<Extractor> sourceTiledExtractor = nullptr) const;
+
+    // Pixel stuff
+    void BeginPixel(const Point2i &pix);
+    void EndPixel();
+
+    // Sample stuff
+    void BeginSample(const Point2f &p);
+    void EndSample(const Spectrum &throughput, float weight = 1.f);
+
+    // todo : do we need UpdatePixel ? which profile for such a method ?
+
+    // Path (or Sample) stuff. May be simplified ?
+    virtual void BeginPath(const Point2f &p);
+
+    // incremental building of a path, usefull for SamplerIntegrators
+    //virtual void InitializePath(const RayDifferential &r, int depth, const Scene &scene) {}
+    /* TODO, see how to generate complete path vertices (like bdpt one) for path-tracing like integrators */
+    void AddCameraVertex(Point3f o /* TODO : is this suffcient ? */);
+    void AddLightVertex(/* TODO : find how to generate this kind of path vertex from a sampler integrator */);
+    void AddPathVertex(const SurfaceInteraction &isect, const std::tuple<Spectrum, Float, Float, BxDFType> &bsdf);
+    // direct building of a path, usefull for bidirectionnal integrators
+    void AddPathVertices(const Vertex *lightVertrices, const Vertex *cameraVertrices, int s, int t);
+    void EndPath(const Spectrum &throughput, float weight = 1.f);
+
+    // General stuff
+    // What are the parameters of this ???
+    void Initialize(const Bounds3f & worldBound);
+    void Flush(float splatScale = 1.f);
+
+    std::unique_ptr<FilmTile> GetFilmTile() {
+        return std::move(film);
+    }
+
+    std::unique_ptr<PathOutputTile> GetPathsTile() {
+        return std::move(paths);
+    }
+
+private:
+
+    const std::regex regex;
+    const std::string regexpr;
+
+    Point2i pixel;
+    MemoryArena arena;
+    Point2f sample_pos;
+
+
+    bool path_started;
+
+    bool path_integrator;
+    Interaction i; // Temporary storage for interaction collection
+
+    // path state
+    int s_state, t_state;
+    Path current_path;
+
+    Film *fullfilm;
+    std::unique_ptr<FilmTile> film;
+    std::unique_ptr<PathOutputTile> paths;
+};
+
+
+Extractor *CreatePathExtractor(const ParamSet &params, std::shared_ptr<const Camera> camera);
+
+
 }
 
 #endif //PBRT_EXTRACTOR_PATH_H

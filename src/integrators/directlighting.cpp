@@ -61,9 +61,10 @@ void DirectLightingIntegrator::Preprocess(const Scene &scene,
 
 Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
                                       const Scene &scene, Sampler &sampler,
-                                      MemoryArena &arena, Extractor &container, int depth) const {
+                                      MemoryArena &arena, Extractor &extractor, int depth) const {
     ProfilePhase p(Prof::SamplerIntegratorLi);
-    container.StartPath(ray, depth, scene);
+    if (depth == 0)
+        extractor.AddCameraVertex(ray.o);
 
     Spectrum L(0.f);
     // Find closest ray intersection or return background radiance
@@ -78,7 +79,7 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
 
 
     if (!isect.bsdf)
-        return Li(isect.SpawnRay(ray.d), scene, sampler, arena, container, depth);
+        return Li(isect.SpawnRay(ray.d), scene, sampler, arena, extractor, depth);
     Vector3f wo = isect.wo;
     // Compute emitted light if ray hit an area light source
     L += isect.Le(wo);
@@ -91,13 +92,13 @@ Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
             L += UniformSampleOneLight(isect, scene, arena, sampler);
     }
 
-    container.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
+    extractor.AddPathVertex(isect, std::make_tuple(L, 1.0f, 1.0f, BSDF_ALL));
 
     if (depth + 1 < maxDepth) {
         Vector3f wi;
         // Trace rays for specular reflection and refraction
-        L += SpecularReflect(ray, isect, scene, sampler, arena, container, depth);
-        L += SpecularTransmit(ray, isect, scene, sampler, arena, container, depth);
+        L += SpecularReflect(ray, isect, scene, sampler, arena, extractor, depth);
+        L += SpecularTransmit(ray, isect, scene, sampler, arena, extractor, depth);
     }
     return L;
 }
