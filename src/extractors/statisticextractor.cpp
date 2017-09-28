@@ -22,6 +22,11 @@ void PixelStatisticsStorageTile::Accumulate(const Point2i &pixel, const Spectrum
     if (InsideExclusive(pixel, limits)) {
         PixelStatistics &buf = GetPixel(pixel);
         /* TODO : Compute the increments on buf.nbsamples, buf.luminance_mean, buf.luminance_variance */
+        float sample_luminance = L.y();
+        ++buf.nbsamples;
+        float delta = sample_luminance - buf.luminance_mean;
+        buf.luminance_mean += delta / buf.nbsamples;
+        buf.luminance_variance += delta * (sample_luminance - buf.luminance_mean);
     }
 
 }
@@ -48,6 +53,11 @@ void PixelStatisticsStorage::MergeTile(PixelStatisticsStorageTile &tile) {
         PixelStatistics &buf_source = tile.GetPixel(p);
         PixelStatistics &buf = GetPixel(p);
         /* TODO : set buf to finalized statistics from buf_source */
+        buf.nbsamples = buf_source.nbsamples;
+        buf.luminance_mean = buf_source.luminance_mean;
+        buf.luminance_variance = buf_source.luminance_variance / (buf.nbsamples - 1);
+        buf.luminance_error = std::sqrt(buf.luminance_variance / buf.nbsamples);
+
     }
 }
 
